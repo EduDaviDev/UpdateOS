@@ -1,0 +1,14 @@
+# Arquivos compilados
+build/
+*.o
+*.elf
+*.iso
+*.bin
+
+# Arquivos temporários
+*.tmp
+*.log
+
+# IDE
+.vscode/
+.idea/
