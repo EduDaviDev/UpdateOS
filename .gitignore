@@ -4,6 +4,7 @@ build/
 *.elf
 *.iso
 *.bin
+*.uex
 
 # Arquivos temporários
 *.tmp
@@ -12,3 +13,4 @@ build/
 # IDE
 .vscode/
 .idea/
+.deepseek_sh_files/
