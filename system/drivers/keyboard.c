@@ -18,7 +18,29 @@ static bool alt_pressed = false;
 static bool sys_pressed = false;
 static bool extended = false;
 
-static char char_buf[2];
+// Tabela de mapeamento direta: scancode (0-127) -> caractere normal
+static const char normal_map[128] = {
+    0,   0,   '1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '-', '=', 0,   0,
+    'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '[', ']', 0,   0,   'a', 's',
+    'd', 'f', 'g', 'h', 'j', 'k', 'l', ';', '\'', '`', 0,   '\\','z', 'x', 'c', 'v',
+    'b', 'n', 'm', ',', '.', '/', 0,   '*', 0,   ' ', 0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   '7', '8', '9', '-', '4', '5', '6', '+', '1',
+    '2', '3', '0', '.', 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+};
+
+// Tabela com Shift pressionado
+static const char shift_map[128] = {
+    0,   0,   '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', '_', '+', 0,   0,
+    'Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P', '{', '}', 0,   0,   'A', 'S',
+    'D', 'F', 'G', 'H', 'J', 'K', 'L', ':', '"', '~', 0,   '|', 'Z', 'X', 'C', 'V',
+    'B', 'N', 'M', '<', '>', '?', 0,   '*', 0,   ' ', 0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   '7', '8', '9', '-', '4', '5', '6', '+', '1',
+    '2', '3', '0', '.', 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+    0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
+};
 
 void keyboard_init(void) {
     write_idx = 0;
@@ -28,6 +50,12 @@ void keyboard_init(void) {
     alt_pressed = false;
     sys_pressed = false;
     extended = false;
+
+    // Limpa o buffer (garante que não haja lixo)
+    for (int i = 0; i < KEYBOARD_BUFFER_SIZE; i++) buffer[i] = 0;
+
+    // Ativa o teclado (se necessário)
+    outb(0x64, 0xAE);   // habilita o teclado (comando para o controlador)
 }
 
 void keyboard_isr(void) {
@@ -55,7 +83,7 @@ void keyboard_isr(void) {
         return;
     }
 
-    // Armazena o scancode no buffer linear
+    // Armazena o scancode no buffer circular
     int next = write_idx + 1;
     if (next - read_idx < KEYBOARD_BUFFER_SIZE) {
         buffer[write_idx % KEYBOARD_BUFFER_SIZE] = sc;
@@ -67,8 +95,9 @@ void keyboard_isr(void) {
 }
 
 KeyEvent keyboard_read(void) {
+    // Se não há tecla, retorna evento vazio
     if (read_idx == write_idx) {
-        KeyEvent ev = { .Char = NULL, .Code = KEY_NONE, .ScanCode = 0,
+        KeyEvent ev = { .Char = '\0', .Code = KEY_NONE, .ScanCode = 0,
                         .Ctrl = false, .Shift = false, .Alt = false, .Sys = false,
                         .pressed = false, .released = false, .clicked = false };
         return ev;
@@ -87,21 +116,16 @@ KeyEvent keyboard_read(void) {
     ev.released = false;
     ev.clicked = false;
 
+    // Mapeia o código da tecla (para KEY_RETURN, KEY_BACKSPACE, etc.)
     const KeyCodes *key_map = (sc < sizeof(scset1_map)) ? scset1_map : scset1_ext_map;
     ev.Code = key_map[sc];
 
+    // Mapeia o caractere usando as tabelas simples
     char c = 0;
-    if (sc < sizeof(scset1_normal_map)) {
-        c = shift_pressed ? scset1_shift_map[sc] : scset1_normal_map[sc];
+    if (sc < 128) {
+        c = shift_pressed ? shift_map[sc] : normal_map[sc];
     }
-
-    if (c == '\b' || c == '\t' || c == '\n' || (c >= 32 && c <= 126)) {
-        char_buf[0] = c;
-        char_buf[1] = '\0';
-        ev.Char = char_buf;
-    } else {
-        ev.Char = NULL;
-    }
+    ev.Char = c;   // se não mapeado, '\0'
 
     return ev;
 }

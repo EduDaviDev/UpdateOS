@@ -6,19 +6,19 @@
 #include "keydef.h"
 
 typedef struct {
-    char* Char;        // caractere ASCII ou NULL
-    KeyCodes Code;     // código da tecla (keydef.h)
-    uint8_t ScanCode;  // scan code bruto
+    char Char;          // caractere ASCII ('\0' se não mapeado)
+    KeyCodes Code;      // código da tecla (keydef.h)
+    uint8_t ScanCode;   // scan code bruto
     bool Ctrl;
     bool Shift;
     bool Alt;
-    bool Sys;          // Windows/Super
-    bool pressed;      // true se foi pressionada neste evento
-    bool released;     // true se foi solta neste evento
-    bool clicked;      // (não implementado)
+    bool Sys;
+    bool pressed;
+    bool released;
+    bool clicked;
 } KeyEvent;
 
 void keyboard_init(void);
-KeyEvent keyboard_read(void); // NÃO bloqueante: retorna evento vazio se não houver tecla
+KeyEvent keyboard_read(void); // não bloqueante
 
 #endif

@@ -12,18 +12,22 @@ ISO_DIR = $(OBJ_DIR)/iso
 GRUB_CFG = system/kernel/grub.cfg
 ISO_FILE = $(OBJ_DIR)/UpdateOS.iso
 
-# Exclui arquivos de exemplo ou duplicados (keyboard_irq, kernel_example, isr_handlers)
+# Imagem FAT32
+FAT32_IMG = $(OBJ_DIR)/fat32.img
+FAT32_SIZE = 64
+FAT32_CONTENT = disk_contents/fat32
+
+# Exclui arquivos de exemplo ou duplicados
 C_SRCS = $(shell find system -name '*.c' ! -name 'keyboard_irq.c' ! -name 'kernel_example.c')
 ASM_SRCS = $(shell find system -name '*.asm' ! -name 'isr_handlers.asm' ! -name 'irq_handlers.asm')
-# Incluímos apenas o irq_handlers.asm (que é o correto)
 ASM_SRCS += system/interrupt/irq_handlers.asm
 
 OBJS = $(patsubst system/%.c, $(OBJ_DIR)/%.o, $(C_SRCS)) \
        $(patsubst system/%.asm, $(OBJ_DIR)/%.o, $(ASM_SRCS))
 
-.PHONY: all clean run
+.PHONY: all clean run disk
 
-all: run
+all: iso disk run
 
 $(OBJ_DIR):
 	mkdir -p $@
@@ -54,8 +58,33 @@ $(ISO_DIR)/boot/grub/grub.cfg: $(GRUB_CFG) | $(ISO_DIR)/boot/grub
 iso: $(ISO_DIR)/boot/UpdateOS.bin $(ISO_DIR)/boot/grub/grub.cfg
 	grub-mkrescue -o $(ISO_FILE) $(ISO_DIR)
 
-run: iso
-	cmd.exe /c "qemu-system-x86_64 -cdrom $(ISO_FILE)"
+# A regra disk agora depende da imagem FAT32
+disk: $(FAT32_IMG)
+
+$(FAT32_IMG): | $(OBJ_DIR)
+	@echo "Criando imagem FAT32 de $(FAT32_SIZE) MiB..."
+	dd if=/dev/zero of=$@ bs=1M count=$(FAT32_SIZE) status=progress
+	mkfs.fat -F 32 -I $@
+
+	# Cria o diretório de conteúdo se não existir
+	@mkdir -p "$(CURDIR)/$(FAT32_CONTENT)"
+
+	# Se o diretório estiver vazio, cria um arquivo de exemplo
+	@if [ -z "$$(find "$(CURDIR)/$(FAT32_CONTENT)" -maxdepth 1 -type f 2>/dev/null)" ]; then \
+		echo "Criando arquivo de exemplo 'teste.txt'..."; \
+		echo "Hello, FAT32!" > "$(CURDIR)/$(FAT32_CONTENT)/teste.txt"; \
+	fi
+
+	# Copia todos os arquivos (recursivamente) para a raiz da imagem
+	@echo "Copiando arquivos para a imagem..."
+	@if [ -n "$$(ls -A "$(CURDIR)/$(FAT32_CONTENT)" 2>/dev/null)" ]; then \
+		mcopy -s -i $@ "$(CURDIR)/$(FAT32_CONTENT)"/* ::/ ; \
+	else \
+		echo "Nenhum arquivo para copiar."; \
+	fi
+
+run: iso disk
+	cmd.exe /c "qemu-system-x86_64 -serial stdio -cdrom $(ISO_FILE) -boot d -drive file=$(FAT32_IMG),format=raw"
 
 clean:
 	rm -rf $(OBJ_DIR)

@@ -36,6 +36,12 @@
 #define VGA_MEMORY 0xB8000
 
 // ==============================
+// Posição atual do cursor (acesso direto pelo usuário)
+// ==============================
+extern uint8_t txt_curX;
+extern uint8_t txt_curY;
+
+// ==============================
 // Funções do driver de vídeo
 // ==============================
 
@@ -46,10 +52,9 @@ void video_init(void);
 void txt_setcol(uint8_t bg, uint8_t fg);
 
 // Define a cor a partir de um atributo completo (byte)
-// Ex: txt_setattr(VGA_COLOR(VGA_COL_BLUE, VGA_COL_WHITE));
 void txt_setattr(uint8_t attr);
 
-// Move o cursor sem imprimir
+// Move o cursor sem imprimir (atualiza variáveis e hardware)
 void txt_jump(uint8_t x, uint8_t y);
 
 // Imprime uma string na posição atual do cursor (com rolagem)
@@ -73,10 +78,26 @@ void txt_clear(void);
 // Limpa a tela com um caractere específico e a cor atual
 void txt_clchar(char c);
 
-// Obtém a posição atual do cursor (virtual)
-void txt_cur_pos(uint8_t *x, uint8_t *y);
+// Mostra ou oculta o cursor (hardware VGA)
+void vga_cur_show(bool show);
 
-// Mostra ou oculta o cursor (modo texto – hardware cursor)
-void txt_show(bool show);
+// ==============================
+// Funções de impressão formatada
+// ==============================
+
+// Imprime um inteiro com sinal em decimal
+void txt_print_int(int num);
+
+// Imprime um inteiro sem sinal em hexadecimal (com prefixo "0x")
+void txt_print_hex(unsigned int num);
+
+// Imprime um inteiro sem sinal em decimal
+void txt_print_uint(unsigned int num);
+
+// Printf simplificado – suporta: %d, %u, %x, %X, %s, %c, %%
+void txt_printf(const char *fmt, ...);
+
+// Nova linha
+void txt_newl(void);
 
 #endif
