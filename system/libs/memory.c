@@ -122,3 +122,9 @@ void *realloc(void *ptr, size_t size) {
     }
     return new_ptr;
 }
+
+void clear_buffer(char *buffer, size_t tamanho) {
+    for (size_t i = 0; i < tamanho; i++) {
+        buffer[i] = 0;  // Preenche cada posição com 0 (null byte)
+    }
+}

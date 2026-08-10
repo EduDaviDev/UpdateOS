@@ -1,16 +1,19 @@
-# Arquivos compilados
+Arquivos compilados
 build/
 *.o
 *.elf
 *.iso
 *.bin
 *.uex
+*.img
 
 # Arquivos temporários
 *.tmp
 *.log
+*.bak
 
 # IDE
 .vscode/
 .idea/
 .deepseek_sh_files/
+*.sh
