@@ -42,13 +42,11 @@ static void vga_update_cursor(void) {
 // ------------------------------------------------------------
 void vga_cur_show(bool show) {
     if (show) {
-        // Habilita cursor (linha de 14 a 15)
         outb(0x3D4, 0x0A);
         outb(0x3D5, (inb(0x3D5) & 0xC0) | 14);
         outb(0x3D4, 0x0B);
         outb(0x3D5, (inb(0x3D5) & 0xE0) | 15);
     } else {
-        // Desabilita cursor
         outb(0x3D4, 0x0A);
         outb(0x3D5, 0x20);
     }
@@ -58,13 +56,11 @@ void vga_cur_show(bool show) {
 // Função interna para rolagem da tela
 // ------------------------------------------------------------
 static void scroll(void) {
-    // Move todas as linhas para cima
     for (int y = 1; y < ROWS; y++) {
         for (int x = 0; x < COLS; x++) {
             video_buffer[(y-1) * COLS + x] = video_buffer[y * COLS + x];
         }
     }
-    // Limpa a última linha com espaços e cor atual
     for (int x = 0; x < COLS; x++) {
         video_buffer[(ROWS-1) * COLS + x] = make_entry(' ', current_color);
     }
@@ -78,8 +74,8 @@ static void scroll(void) {
 // Inicializa o vídeo
 // ------------------------------------------------------------
 void video_init(void) {
-    txt_clear();          // já atualiza o cursor
-    vga_cur_show(true);   // ativa o cursor
+    txt_clear();
+    vga_cur_show(true);
 }
 
 // ------------------------------------------------------------
@@ -113,21 +109,19 @@ static void putc_internal(char c) {
     } else if (c == '\r') {
         txt_curX = 0;
     } else if (c == '\t') {
-        // Tab: 4 espaços
         for (int i = 0; i < 4; i++) putc_internal(' ');
-        return;  // após a tab, a função já foi chamada recursivamente e o cursor atualizado
+        return;
     } else {
         video_buffer[txt_curY * COLS + txt_curX] = make_entry(c, current_color);
         txt_curX++;
     }
 
-    // Verifica se precisa quebrar linha
     if (txt_curX >= COLS) {
         txt_curX = 0;
         txt_curY++;
     }
     if (txt_curY >= ROWS) {
-        scroll();   // scroll já chama vga_update_cursor
+        scroll();
     } else {
         vga_update_cursor();
     }
@@ -157,13 +151,11 @@ void txt_pos_print(uint8_t x, uint8_t y, const char *str) {
         *pos++ = make_entry(*str++, current_color);
         x++;
     }
-    // Não atualiza o cursor – posição absoluta não muda o cursor lógico
 }
 
 void txt_pos_putc(uint8_t x, uint8_t y, char c) {
     if (x >= COLS || y >= ROWS) return;
     video_buffer[y * COLS + x] = make_entry(c, current_color);
-    // Não atualiza o cursor
 }
 
 // ------------------------------------------------------------
@@ -178,7 +170,6 @@ void txt_fill(uint8_t x, uint8_t y, uint8_t dx, uint8_t dy, char c) {
             video_buffer[(y + row) * COLS + (x + col)] = make_entry(c, current_color);
         }
     }
-    // Não altera o cursor
 }
 
 // ------------------------------------------------------------
@@ -255,12 +246,9 @@ void txt_print_hex(unsigned int num) {
 }
 
 // ------------------------------------------------------------
-// txt_printf – printf simplificado
+// txt_vprintf - versão com va_list
 // ------------------------------------------------------------
-void txt_printf(const char *fmt, ...) {
-    va_list args;
-    va_start(args, fmt);
-
+static void txt_vprintf(const char *fmt, va_list args) {
     while (*fmt) {
         if (*fmt != '%') {
             txt_putc(*fmt++);
@@ -312,9 +300,77 @@ void txt_printf(const char *fmt, ...) {
             }
         }
     }
+}
+
+// ------------------------------------------------------------
+// txt_printf – printf simplificado
+// ------------------------------------------------------------
+void txt_printf(const char *fmt, ...) {
+    va_list args;
+    va_start(args, fmt);
+    txt_vprintf(fmt, args);
     va_end(args);
 }
 
 void txt_newl(void) {
     txt_putc('\n');
+}
+
+// ------------------------------------------------------------
+// NOVAS FUNÇÕES: word wrap e posicionamento
+// ------------------------------------------------------------
+
+// Imprime string com quebra de linha automática (word wrap) na posição atual
+void txt_printw(const char *str) {
+    while (*str) {
+        if (*str == '\n') {
+            txt_putc('\n');
+            str++;
+            continue;
+        }
+        // Se chegou ao final da linha, tenta quebrar no último espaço
+        if (txt_curX >= COLS - 1) {
+            // Procura o último espaço antes da posição atual
+            const char *last_space = str;
+            // Volta até encontrar um espaço ou início da string
+            while (last_space > str && *last_space != ' ') last_space--;
+            if (*last_space == ' ' && last_space != str) {
+                // Imprime do início até o espaço (inclusive)
+                while (str <= last_space) {
+                    if (*str != ' ') txt_putc(*str);
+                    str++;
+                }
+                txt_putc('\n');
+                // Pula o espaço
+                if (*str == ' ') str++;
+                continue;
+            } else {
+                // Não há espaço, quebra forçada
+                txt_putc('\n');
+                continue;
+            }
+        }
+        txt_putc(*str++);
+    }
+}
+
+// Imprime string com quebra de linha automática em posição absoluta
+void txt_pos_printw(uint8_t x, uint8_t y, const char *str) {
+    uint8_t old_x = txt_curX;
+    uint8_t old_y = txt_curY;
+    txt_jump(x, y);
+    txt_printw(str);
+    txt_jump(old_x, old_y);
+}
+
+// Imprime string formatada em posição absoluta (printf com posição)
+void txt_pos_printf(uint8_t x, uint8_t y, const char *fmt, ...) {
+    uint8_t old_x = txt_curX;
+    uint8_t old_y = txt_curY;
+    txt_jump(x, y);
+    va_list args;
+    va_start(args, fmt);
+    txt_vprintf(fmt, args);
+    va_end(args);
+    txt_jump(old_x, old_y);
 }

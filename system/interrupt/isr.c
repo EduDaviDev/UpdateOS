@@ -5,6 +5,7 @@
 
 extern void irq0_handler(void);
 extern void irq1_handler(void);
+extern void syscall_isr(void);
 
 void isr_install(void) {
     gdt_init();
@@ -13,6 +14,8 @@ void isr_install(void) {
 
     idt_set_handler(0x20, irq0_handler);
     idt_set_handler(0x21, irq1_handler);
+
+    idt_set_handler(0x80, syscall_isr);
 
     pic_enable_irq(0);
     pic_enable_irq(1);

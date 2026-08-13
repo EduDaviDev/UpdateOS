@@ -28,6 +28,8 @@ float pow_float(float base, float exp);
 
 void itoa(int n, char *str);
 void utoa(unsigned int n, char *str, int base);
+int char_to_int(char c);
+int string_to_int(const char *str);
 
 /* ============================================================
    Funções de suporte para libgcc (divisão de 64 bits)

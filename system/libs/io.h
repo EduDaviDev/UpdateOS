@@ -36,4 +36,30 @@ static inline void outl(uint16_t port, uint32_t val) {
     __asm__ volatile ("outl %0, %1" : : "a"(val), "Nd"(port));
 }
 
+/* --- Funções de sistema --- */
+
+// Reinicializa o sistema (reset) via controlador de teclado (porta 0x64)
+static inline void reboot(void) {
+    // Tenta reset via controlador de teclado
+    outb(0x64, 0xFE);
+    // Fallback: se não funcionar, tenta escrever na porta 0xCF9 (via PCI)
+    outb(0xCF9, 0x06);
+    // Espera eterna (caso não reinicie)
+    while (1) __asm__ volatile ("hlt");
+}
+
+// Desliga o sistema (shutdown) – compatível com QEMU e hardware moderno (ACPI)
+static inline void shutdown(void) {
+    // Tenta desligar via QEMU (porta 0x604 - valor 0x2000)
+    outl(0x604, 0x2000);
+    // Tenta via VMware (porta 0x8900 - valor 0x0000)
+    outw(0x8900, 0x0000);
+    // Tenta via ACPI (porta 0x4004 - valor 0x0000)
+    outw(0x4004, 0x0000);
+    // Tenta via porta 0x604 com valor 0x3000 (outro método)
+    outl(0x604, 0x3000);
+    // Se nada funcionar, entra em loop infinito
+    while (1) __asm__ volatile ("hlt");
+}
+
 #endif /* IO_H */

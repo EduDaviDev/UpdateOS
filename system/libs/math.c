@@ -134,6 +134,41 @@ void utoa(unsigned int n, char *str, int base) {
     str[i] = '\0';
 }
 
+int char_to_int(char c) {
+    if (c >= '0' && c <= '9') {
+        return c - '0';
+    }
+    // Opcional: se quiser suportar letras hexadecimais (A-F, a-f)
+    // else if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    // else if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    return -1; // caractere inválido
+}
+
+int string_to_int(const char *str) {
+    int result = 0;
+    int sign = 1;
+    int i = 0;
+
+    // Ignora espaços iniciais
+    while (str[i] == ' ') i++;
+
+    // Verifica sinal
+    if (str[i] == '-') {
+        sign = -1;
+        i++;
+    } else if (str[i] == '+') {
+        i++;
+    }
+
+    // Converte dígitos
+    while (str[i] >= '0' && str[i] <= '9') {
+        result = result * 10 + (str[i] - '0');
+        i++;
+    }
+
+    return result * sign;
+}
+
 /* ============================================================
    Funções de suporte para libgcc (divisão de 64 bits)
    ============================================================ */

@@ -85,6 +85,12 @@ void vga_cur_show(bool show);
 // Funções de impressão formatada
 // ==============================
 
+// Imprime string com quebra de linha automática (word wrap) na posição atual
+void txt_printw(const char *str);
+
+// Imprime string com quebra de linha automática em posição absoluta
+void txt_pos_printw(uint8_t x, uint8_t y, const char *str);
+
 // Imprime um inteiro com sinal em decimal
 void txt_print_int(int num);
 
@@ -96,6 +102,9 @@ void txt_print_uint(unsigned int num);
 
 // Printf simplificado – suporta: %d, %u, %x, %X, %s, %c, %%
 void txt_printf(const char *fmt, ...);
+
+// Imprime string formatada em posição absoluta (printf com posição)
+void txt_pos_printf(uint8_t x, uint8_t y, const char *fmt, ...);
 
 // Nova linha
 void txt_newl(void);
