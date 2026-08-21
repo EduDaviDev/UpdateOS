@@ -4,7 +4,6 @@ build/
 *.elf
 *.iso
 *.bin
-*.uex
 *.img
 
 # Arquivos temporários

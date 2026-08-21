@@ -90,7 +90,7 @@ menu: $(MENU_BIN)
 system: $(KERNEL_BIN) run
 
 # run: compila ISO, discos, apps e executa no QEMU
-run: iso
+run:
 	@echo "Executando UpdateOS no QEMU (logs em serial.log e qemu.log)..."
 	@cmd="qemu-system-x86_64 -serial file:serial.log -cdrom $(ISO_FILE) -boot d -no-reboot -d int,cpu_reset -D qemu.log"; \
 	for img in $(DISK_IMG_DIR)/*.img; do \
