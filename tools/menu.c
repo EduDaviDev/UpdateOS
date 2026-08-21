@@ -7,18 +7,12 @@
 
 #define MAX_INPUT 128
 #define FS_COUNT 4
-#define APP_TYPES 4
 
 char disks_path[MAX_INPUT] = "./disks";
 char apps_path[MAX_INPUT] = "./apps";
-char app_type[MAX_INPUT] = "coded";
 bool multi_fs_enabled = false;
 bool fs_selected[FS_COUNT] = {true, false, false, false};
 const char *fs_names[FS_COUNT] = {"FAT12", "FAT16", "FAT32", "ExFAT"};
-
-bool multi_apps_enabled = false;
-bool app_types_selected[APP_TYPES] = {true, false, false, false};
-const char *app_type_names[APP_TYPES] = {"coded", "binaries", "objects", "multi"};
 
 int runlevel = 1;
 int highlight = 0;
@@ -29,7 +23,6 @@ int draw_main_menu(void);
 int draw_apps_menu(void);
 int draw_disks_menu(void);
 int draw_fs_selector(void);
-int draw_apps_selector(void);
 void input_path(char *dest, const char *prompt);
 void execute_option(int level, int choice);
 int handle_key(int ch, int num_opts);
@@ -77,12 +70,6 @@ int main(void) {
                 ch = getch();
                 if (handle_key(ch, num_opts)) continue;
                 break;
-            case 5:
-                num_opts = draw_apps_selector();
-                refresh();
-                ch = getch();
-                if (handle_key(ch, num_opts)) continue;
-                break;
             case 20:
                 input_path(apps_path, "Enter apps base path: ");
                 runlevel = 2;
@@ -94,23 +81,7 @@ int main(void) {
             case 40:
                 {
                     char cmd[512];
-                    if (multi_apps_enabled) {
-                        char type_list[256] = "";
-                        for (int i = 0; i < APP_TYPES; i++)
-                            if (app_types_selected[i]) {
-                                if (strlen(type_list) > 0) strcat(type_list, ",");
-                                strcat(type_list, app_type_names[i]);
-                            }
-                        if (strlen(type_list) == 0) {
-                            mvprintw(10, 0, "Nenhum tipo selecionado! Pressione qualquer tecla.");
-                            refresh(); getch(); runlevel = 2; break;
-                        }
-                        snprintf(cmd, sizeof(cmd), "make apps APP_TYPE=multi APPS_BASE=%s", apps_path);
-                    } else {
-                        int idx = 0;
-                        for (int i = 0; i < APP_TYPES; i++) if (app_types_selected[i]) { idx = i; break; }
-                        snprintf(cmd, sizeof(cmd), "make apps APP_TYPE=%s APPS_BASE=%s", app_type_names[idx], apps_path);
-                    }
+                    snprintf(cmd, sizeof(cmd), "make apps APPS_BASE=%s", apps_path);
                     endwin();
                     system(cmd);
                     initscr(); cbreak(); noecho(); keypad(stdscr, TRUE); curs_set(0);
@@ -245,8 +216,8 @@ int draw_apps_menu(void) {
     int row = 0;
     draw_box(row++, "UpdateOS V1.0 - Build Apps");
     row += 2;
-    const char *opts[] = {"[1]  Set App Base Path", "[2]  Select App Types", "[3]  Build Apps!", "[0]  Back"};
-    int num_opts = 4;
+    const char *opts[] = {"[1]  Set App Base Path", "[2]  Build Apps!", "[0]  Back"};
+    int num_opts = 3;
     for (int i = 0; i < num_opts; i++) {
         if (i == highlight) attron(A_REVERSE);
         draw_line(row++, opts[i]);
@@ -308,37 +279,6 @@ int draw_fs_selector(void) {
     return num_opts;
 }
 
-int draw_apps_selector(void) {
-    int row = 0;
-    draw_box(row++, multi_apps_enabled ? "Select App Types (Multi)" : "Select App Type (Single)");
-    row += 2;
-    int num_opts = APP_TYPES + (multi_apps_enabled ? 2 : 1);
-    for (int i = 0; i < APP_TYPES; i++) {
-        char line[64];
-        if (multi_apps_enabled)
-            snprintf(line, sizeof(line), "[%d]  %s %s", i+1, app_type_names[i], app_types_selected[i] ? "[X]" : "[ ]");
-        else
-            snprintf(line, sizeof(line), "[%d]  %s %s", i+1, app_type_names[i], app_types_selected[i] ? "(O)" : "( )");
-        if (i == highlight) attron(A_REVERSE);
-        draw_line(row++, line);
-        if (i == highlight) attroff(A_REVERSE);
-    }
-    if (multi_apps_enabled) {
-        int idx = APP_TYPES;
-        if (idx == highlight) attron(A_REVERSE);
-        draw_line(row++, "[5]  Toggle/Invert");
-        if (idx == highlight) attroff(A_REVERSE);
-    }
-    int back_idx = multi_apps_enabled ? APP_TYPES + 1 : APP_TYPES;
-    if (back_idx == highlight) attron(A_REVERSE);
-    draw_line(row++, "[0]  Back");
-    if (back_idx == highlight) attroff(A_REVERSE);
-    draw_box(row++, "");
-    row++;
-    mvprintw(row, 2, multi_apps_enabled ? "Toggle: select multiple types" : "Radio: select only one type");
-    return num_opts;
-}
-
 void execute_option(int level, int choice) {
     switch (level) {
         case 1:
@@ -359,7 +299,7 @@ void execute_option(int level, int choice) {
                 case 3: // Make Disks
                     runlevel = 3;
                     break;
-                case 4: // Exit – NÃO COMPILA NADA!
+                case 4: // Exit
                     endwin();
                     exit(0);
                     break;
@@ -368,9 +308,8 @@ void execute_option(int level, int choice) {
         case 2:
             switch (choice) {
                 case 0: runlevel = 20; break;
-                case 1: runlevel = 5; break;
-                case 2: runlevel = 40; break;
-                case 3: runlevel = 1; break;
+                case 1: runlevel = 40; break;
+                case 2: runlevel = 1; break;
             }
             break;
         case 3:
@@ -396,18 +335,6 @@ void execute_option(int level, int choice) {
                 else if (sel == 0) for (int i = 0; i < FS_COUNT; i++) fs_selected[i] = true;
                 else for (int i = 0; i < FS_COUNT; i++) fs_selected[i] = !fs_selected[i];
             } else runlevel = 3;
-            break;
-        case 5:
-            if (choice < APP_TYPES) {
-                if (multi_apps_enabled) app_types_selected[choice] = !app_types_selected[choice];
-                else for (int i = 0; i < APP_TYPES; i++) app_types_selected[i] = (i == choice);
-            } else if (multi_apps_enabled && choice == APP_TYPES) {
-                int sel = 0;
-                for (int i = 0; i < APP_TYPES; i++) if (app_types_selected[i]) sel++;
-                if (sel == APP_TYPES) for (int i = 0; i < APP_TYPES; i++) app_types_selected[i] = false;
-                else if (sel == 0) for (int i = 0; i < APP_TYPES; i++) app_types_selected[i] = true;
-                else for (int i = 0; i < APP_TYPES; i++) app_types_selected[i] = !app_types_selected[i];
-            } else runlevel = 2;
             break;
     }
 }

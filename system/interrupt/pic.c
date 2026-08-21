@@ -4,13 +4,13 @@
 void pic_remap(void) {
     outb(PIC1_CMD, 0x11);
     outb(PIC2_CMD, 0x11);
-    outb(PIC1_DATA, 0x20);
-    outb(PIC2_DATA, 0x28);
+    outb(PIC1_DATA, 0x20);   // remapear IRQ0-7 para 0x20-0x27
+    outb(PIC2_DATA, 0x28);   // remapear IRQ8-15 para 0x28-0x2F
     outb(PIC1_DATA, 0x04);
     outb(PIC2_DATA, 0x02);
     outb(PIC1_DATA, 0x01);
     outb(PIC2_DATA, 0x01);
-    outb(PIC1_DATA, 0xFF);
+    outb(PIC1_DATA, 0xFF);   // mascara todas
     outb(PIC2_DATA, 0xFF);
 }
 

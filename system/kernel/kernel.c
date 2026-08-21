@@ -1,13 +1,16 @@
 #include "../drivers/video.h"
 #include "../drivers/keyboard.h"
-#include "../interrupt/isr.h"
+#include "../drivers/serial.h"
+#include "../drivers/io.h"
 #include "../drivers/fatfs/ff.h"
-#include "../libs/io.h"
-#include "../libs/serial.h"
+#include "../interrupt/isr.h"
+#include "../interrupt/gdt.h"
+#include "../interrupt/tss.h"
+#include "../interrupt/syscall.h"
+#include "../memory/paging.h"
 #include "../libs/string.h"
 #include "../libs/memory.h"
 #include "uex.h"
-#include <stddef.h>
 
 /* ============================================================
    Definições do shell (embutido no kernel)
@@ -23,38 +26,38 @@ static int cmd_pos = 0;
 static FATFS fs;
 static bool fs_mounted = false;
 
-/* --- Funções auxiliares do shell --- */
-
-// Constrói caminho absoluto a partir do cwd e um nome relativo
+/* --- Constrói caminho absoluto a partir do cwd --- */
 static void build_path(const char *rel, char *out, size_t out_size) {
     if (rel[0] == '/') {
         strncpy(out, rel, out_size - 1);
         out[out_size - 1] = '\0';
         return;
     }
+    // Garante que cwd termine com '/'
     size_t cwd_len = strlen(cwd);
-    if (cwd_len > 0 && cwd[cwd_len - 1] == '/') {
-        snprintf(out, out_size, "%s%s", cwd, rel);
-    } else {
+    if (cwd_len == 0 || cwd[cwd_len - 1] != '/') {
         snprintf(out, out_size, "%s/%s", cwd, rel);
+    } else {
+        snprintf(out, out_size, "%s%s", cwd, rel);
     }
 }
 
-/* --- Comandos do shell --- */
-
+/* --- Lista arquivos do diretório atual --- */
 static void cmd_list(void) {
     DIR dir;
     FILINFO fno;
     FRESULT res = f_opendir(&dir, cwd);
     if (res != FR_OK) {
-        txt_printf("Erro ao abrir diretório: %d\n", res);
+        txt_printf("Erro ao abrir diretório '%s': %d\n", cwd, res);
         return;
     }
-    txt_print("Conteúdo:\n");
+    txt_print("Conteúdo de ");
+    txt_print(cwd);
+    txt_print(":\n");
     while (1) {
         res = f_readdir(&dir, &fno);
         if (res != FR_OK || fno.fname[0] == 0) break;
-        if (fno.fname[0] == '.') continue;
+        if (fno.fname[0] == '.') continue;  // ocultos
 
         if (fno.fattrib & AM_DIR) {
             txt_setcol(VGA_COL_BLACK, VGA_COL_LIGHT_CYAN);
@@ -68,6 +71,7 @@ static void cmd_list(void) {
     f_closedir(&dir);
 }
 
+/* --- Muda diretório --- */
 static void cmd_cd(const char *arg) {
     if (!arg || arg[0] == '\0') {
         txt_print("Uso: cd <pasta>\n");
@@ -82,25 +86,37 @@ static void cmd_cd(const char *arg) {
         f_closedir(&testdir);
         strncpy(cwd, new_path, sizeof(cwd) - 1);
         cwd[sizeof(cwd) - 1] = '\0';
+        // Garante barra final
         size_t len = strlen(cwd);
-        if (len == 0 || cwd[len - 1] != '/') {
+        if (len > 0 && cwd[len - 1] != '/') {
             strncat(cwd, "/", sizeof(cwd) - len - 1);
         }
     } else {
-        txt_printf("Diretório não encontrado: %s\n", arg);
+        txt_printf("Diretório não encontrado: %s (código %d)\n", arg, res);
     }
 }
 
+/* --- Executa um binário --- */
 static void cmd_run(const char *arg) {
     if (!arg || arg[0] == '\0') {
-        txt_print("Uso: run <arquivo.uex>\n");
+        txt_print("Uso: run <arquivo>\n");
         return;
     }
     char full_path[MAX_PATH_LEN];
     build_path(arg, full_path, sizeof(full_path));
+
+    // Verifica se o arquivo existe antes de tentar abrir
+    FILINFO info;
+    FRESULT res = f_stat(full_path, &info);
+    if (res != FR_OK) {
+        txt_printf("Arquivo não encontrado: %s (código %d)\n", full_path, res);
+        return;
+    }
+
     uex_run(full_path);
 }
 
+/* --- Exibe conteúdo de arquivo texto --- */
 static void cmd_read(const char *arg) {
     if (!arg || arg[0] == '\0') {
         txt_print("Uso: read <arquivo>\n");
@@ -112,7 +128,7 @@ static void cmd_read(const char *arg) {
     FIL file;
     FRESULT res = f_open(&file, full_path, FA_READ);
     if (res != FR_OK) {
-        txt_printf("Arquivo não encontrado: %d\n", res);
+        txt_printf("Erro ao abrir %s: %d\n", full_path, res);
         return;
     }
     char buffer[256];
@@ -125,30 +141,28 @@ static void cmd_read(const char *arg) {
     txt_newl();
 }
 
+/* --- Comandos de sistema --- */
 static void cmd_reboot(void) {
-    txt_print("Reiniciando sistema...\n");
+    txt_print("Reiniciando...\n");
     reboot();
 }
-
 static void cmd_shutdown(void) {
-    txt_print("Desligando sistema...\n");
+    txt_print("Desligando...\n");
     shutdown();
 }
-
 static void cmd_help(void) {
-    txt_print("Comandos disponíveis:\n");
-    txt_print("  list            - lista arquivos do diretório atual\n");
-    txt_print("  cd <pasta>      - muda de diretório\n");
-    txt_print("  run <file.uex>  - executa um aplicativo .uex\n");
-    txt_print("  read <file>     - exibe o conteúdo de um arquivo texto\n");
-    txt_print("  reboot          - reinicia o sistema\n");
-    txt_print("  shutdown        - desliga o sistema\n");
-    txt_print("  help            - mostra esta ajuda\n");
-    txt_print("  exit            - sai do shell (volta ao kernel)\n");
+    txt_print("Comandos:\n");
+    txt_print("  list            - lista arquivos\n");
+    txt_print("  cd <pasta>      - muda diretório\n");
+    txt_print("  run <arquivo>   - executa binário\n");
+    txt_print("  read <arquivo>  - exibe arquivo texto\n");
+    txt_print("  reboot          - reinicia\n");
+    txt_print("  shutdown        - desliga\n");
+    txt_print("  help            - esta ajuda\n");
+    txt_print("  exit            - sai do shell\n");
 }
 
-/* --- Processador de comandos --- */
-
+/* --- Processa comando --- */
 static bool process_command(char *cmd) {
     while (*cmd == ' ') cmd++;
     if (*cmd == '\0') return false;
@@ -186,10 +200,8 @@ static bool process_command(char *cmd) {
     return false;
 }
 
-/* --- Função principal do shell (embutida) --- */
-
+/* --- Shell principal --- */
 static void shell_run(void) {
-    // Monta o sistema de arquivos
     if (!fs_mounted) {
         FRESULT res = f_mount(&fs, "0:", 1);
         if (res != FR_OK) {
@@ -200,7 +212,7 @@ static void shell_run(void) {
         txt_print("Sistema de arquivos montado em 0:\n");
     }
 
-    txt_printf("Shell UpdateOS v1.0 - Digite 'help' para comandos.\n");
+    txt_printf("Shell UpdateOS - Digite 'help'.\n");
     txt_printf("Diretório atual: %s\n", cwd);
 
     bool exit_shell = false;
@@ -210,14 +222,8 @@ static void shell_run(void) {
         cmd_buf[0] = '\0';
 
         while (1) {
-            // Usa o novo driver de teclado (kbd_gevent - não bloqueante)
             KeyEvent key = kbd_gevent();
-            if (!key.pressed) {
-                // Se não houver tecla, continua (não bloqueante)
-                // Para evitar loop muito rápido, podemos adicionar uma pausa simples.
-                // Mas como não temos PIT ainda, apenas seguimos.
-                continue;
-            }
+            if (!key.pressed) continue;
 
             char c = key.character;
 
@@ -232,17 +238,24 @@ static void shell_run(void) {
                 break;
             }
             else if (key.keycode == KEY_BACKSPACE) {
-                if (cmd_pos > 0) {
-                    cmd_pos--;
-                    cmd_buf[cmd_pos] = '\0';
-                    // Apaga da tela
-                    if (txt_curX > 0) {
-                        txt_curX--;
-                        txt_putc(' ');
-                        txt_curX--;
-                    }
-                }
-            }
+			    if (cmd_pos > 0) {
+			        // 1. Remove do buffer
+			        cmd_pos--;
+			        cmd_buf[cmd_pos] = '\0';
+				
+			        // 2. Volta o cursor uma posição (se não estiver no início da linha)
+			        if (txt_curX > 0) {
+			            txt_curX--;
+			            // 3. Escreve um espaço na posição atual (apaga o caractere)
+			            txt_putc(' ');
+			            // 4. Volta o cursor novamente para a posição do espaço
+			            txt_curX--;
+			        } else {
+			            // Se estiver no início da linha, não faz nada (ou sobe linha)
+			            // Mas geralmente não ocorre porque o prompt nunca está em coluna 0
+			        }
+			    }
+			}
             else if (c >= 32 && c <= 126) {
                 if (cmd_pos < MAX_CMD_LEN - 1) {
                     cmd_buf[cmd_pos++] = c;
@@ -255,31 +268,19 @@ static void shell_run(void) {
     }
 }
 
-/* ============================================================
-   Kernel principal
-   ============================================================ */
-
 void kernel_main(void) {
-    // 1. Inicializa interrupções, teclado, vídeo, serial
-    isr_install();
-    kbd_init();
     video_init();
-    txt_setcol(VGA_COL_BLACK, VGA_COL_WHITE);
     serial_init();
-
-	uex_init();
-
-    // 2. Limpa a tela e exibe mensagem inicial
     txt_clear();
-    txt_print("UpdateOS v1.1 - Kernel\n");
-    txt_print("Digite 'help' para ver os comandos disponíveis.\n\n");
+    txt_print("UpdateOS v1.0\n");
 
-    // 3. Inicia o shell (embutido)
+    gdt_init();
+    tss_init();
+    isr_install();
+    syscall_init();
+    kbd_init();
+
+    txt_print("Sistema inicializado.\n");
     shell_run();
-
-    // 4. Se o shell retornar (comando "exit"), entra em idle
-    txt_print("Shell encerrado. Sistema em idle.\n");
-    while (1) {
-        __asm__ volatile ("hlt");
-    }
+    while (1) __asm__("hlt");
 }

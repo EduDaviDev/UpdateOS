@@ -5,8 +5,9 @@ static idt_entry_t idt[256];
 static idt_ptr_t idt_ptr;
 
 static void default_handler(void) {
+    txt_print("Exceção não tratada!\n");
     disable_interrupts();
-    while (1) { }
+    while (1) { __asm__ volatile ("hlt"); }
 }
 
 static void idt_set_gate(uint8_t vector, uint32_t base, uint16_t selector, uint8_t flags) {
