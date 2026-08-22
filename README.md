@@ -13,4 +13,4 @@ cd <PASTA DO UPOS>
 make
 ```
 
-Atualmente está na versão **1.0 DEV**
+Atualmente está na versão **1.0**
