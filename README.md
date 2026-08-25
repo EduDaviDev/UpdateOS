@@ -4,6 +4,8 @@
 
 Versão atual: **1.0**
 
+Meu sistema operacional tem teclado, texto vga, irq, syscalls, tss, gdt, idt e paginação
+
 ## Como compilar:<br>
 1. Vá em releases:
 <img width="849" height="471" alt="Go to releases" src="https://github.com/user-attachments/assets/28d3941d-e7a1-47ad-b761-831fc06e1445" /><br>
