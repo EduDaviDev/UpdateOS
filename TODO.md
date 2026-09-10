@@ -1,7 +1,12 @@
 # UpdateOS ToDo
 
 ### System
-- [ ] Add Interruptions
+- [x] Add Interruptions
+  - [x] IDT (Interrupt Descriptor Table)
+  - [x] GDT (Global Descriptor Table)
+  - [x] ISRs (Interrupt Service Routines)
+  - [x] IRQs (Interrupt Requests)
+  - [x] PIC (Programmable Interrupt Controller)
 - [ ] Add Paging
 - [ ] Add UEX (Update Executable)
 
