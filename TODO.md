@@ -13,5 +13,6 @@
 ### Drivers
 - [ ] Add Keyboard
 - [ ] Add Mouse
+- [ ] Add Timer
 - [ ] Add Graphics
 - [ ] Add Sound (PC Speaker)
