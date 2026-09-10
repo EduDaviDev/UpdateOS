@@ -1,0 +1,66 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-upos",
+            "type": "shell",
+            "command": "wsl",
+            "args": [
+                "make"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [
+                "$gcc"
+            ],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared",
+                "clear": true
+            },
+            "detail": "Compila o UpdateOS via WSL (make)"
+        },
+        {
+            "label": "run-qemu",
+            "type": "shell",
+            "command": "wsl",
+            "args": [
+                "make",
+				"run"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "dependsOn": "build-upos",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            },
+            "detail": "Compila e executa a ISO no QEMU via WSL"
+        },
+        {
+            "label": "clean-upos",
+            "type": "shell",
+            "command": "wsl",
+            "args": [
+                "make", "clean"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "detail": "Remove a pasta build/ via WSL"
+        }
+    ]
+}

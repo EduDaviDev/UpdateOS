@@ -1,0 +1,39 @@
+Oi, eu quero criar um OS chamado "UpdateOS"/"UpOS"
+
+github: https://github.com/EduDaviDev/UpdateOS
+
+O UpdateOS é um sistema operacional feito para tentar vencer o windows em estabilidade e uso de recursos, sendo leve e estável
+
+estrutura inicial: UpOS/
+	build/
+		kernel/...							copia a estrutura das pastas e coloca os .o aqui
+		dependencies/...					*.d
+		iso/								pasta da ISO
+			boot/
+				grub/
+					grub.cfg				copiado
+				upkernel.elf				copiado
+			system/...						copiado de kernel/iso
+		UpKnel.elf							kernel
+		UpOS.iso							iso
+	
+	kernel/
+		drivers/
+			vga.c							modo texto VGA
+			vga.h
+		
+		iso/...								copia para build/iso/system
+		
+		boot.asm							multiboot 2
+		kernel.c							kernel_main()
+		grub.cfg							grub
+		linker.ld							linker
+		mboot.h								header do multiboot2
+
+	Makefile
+		Compila e executa o sistema, usando GCC(*.c), G++(*.cpp|*.c++), NASM(*.asm) e GAS(*.s)
+
+kernel/drivers/vga.c:
+	txt_clear();
+	txt_putc(char c);
+	txt_print(str);
