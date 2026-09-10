@@ -42,7 +42,7 @@ void kernel_main(uint32_t magic, struct multiboot_info *mb_info)
         }
     }
 
-    vga_print("\nPressione qualquer tecla para parar...\n");
+    vga_print("\nFunciona BR BR BR\n");
 
     /* 5. Loop infinito (o kernel não deve retornar) */
     for (;;) {
