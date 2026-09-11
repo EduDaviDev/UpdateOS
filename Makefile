@@ -27,6 +27,8 @@ ISO_DIR      = $(BUILD_DIR)/iso
 BOOT_DIR     = $(ISO_DIR)/boot
 GRUB_DIR     = $(BOOT_DIR)/grub
 SYSTEM_DIR   = $(ISO_DIR)/system
+LOG_DIR      = logs
+QEMU_LOG     = $(LOG_DIR)/qemu.log
 
 # ---- Arquivos finais ----
 KERNEL_ELF   = $(BUILD_DIR)/UpKnel.elf
@@ -59,7 +61,7 @@ ALL_DEPENDS  := $(C_DEPENDS) $(CXX_DEPENDS)
 # Alvos principais
 # ============================================================
 
-.PHONY: all clean run iso kernel
+.PHONY: all clean run iso kernel debug
 
 all: $(ISO_FILE)
 
@@ -109,9 +111,24 @@ $(ISO_FILE): $(KERNEL_ELF) $(GRUB_CFG_SRC)
 	$(GRUB) -o $(ISO_FILE) $(ISO_DIR)
 
 # ---- Executar no QEMU ----
+# ---- Executar no QEMU (com log em logs/qemu.log) ----
 run: $(ISO_FILE)
-	cmd.exe /c "$(QEMU) -cdrom $(ISO_FILE)"
+	@mkdir -p $(LOG_DIR)
+	@echo "==> Log do QEMU sera salvo em $(QEMU_LOG)"
+	cmd.exe /c "if exist $(QEMU_LOG) del /q $(QEMU_LOG)" 2>/dev/null || true
+	cmd.exe /c "$(QEMU) -cdrom $(ISO_FILE) \
+		-no-reboot -no-shutdown \
+		-d int,cpu_reset \
+		-D $(QEMU_LOG) \
+		-serial file:$(LOG_DIR)/serial.log"
+
+debug: run
+	@echo ""
+	@echo "==== Ultimas 80 linhas do log do QEMU ===="
+	@tail -n 80 $(QEMU_LOG) 2>/dev/null || type $(QEMU_LOG)
+	@echo "=========================================="
 
 # ---- Limpeza ----
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -rf $(LOG_DIR)

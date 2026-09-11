@@ -11,7 +11,7 @@
 - [ ] Add UEX (Update Executable)
 
 ### Drivers
-- [ ] Add Keyboard
+- [x] Add Keyboard
 - [ ] Add Mouse
 - [ ] Add Timer
 - [ ] Add Graphics
