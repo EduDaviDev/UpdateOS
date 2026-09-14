@@ -7,7 +7,7 @@
   - [x] ISRs (Interrupt Service Routines)
   - [x] IRQs (Interrupt Requests)
   - [x] PIC (Programmable Interrupt Controller)
-- [ ] Add Paging
+- [x] Add Paging
 - [ ] Add UEX (Update Executable)
 
 ### Drivers

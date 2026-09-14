@@ -1,158 +1,178 @@
 #include <stdint.h>
-#include "drivers/vga.h"
-#include "io.h"
+
 #include "mboot.h"
+#include "drivers/vga.h"
+#include "drivers/keyboard.h"
 #include "cpu/gdt.h"
 #include "cpu/idt.h"
-#include "cpu/pic.h"
-#include "cpu/irq.h"
 #include "cpu/isr.h"
+#include "cpu/irq.h"
+#include "cpu/paging.h"
+#include "libs/memory.h"
 #include "libs/string.h"
-#include "drivers/keyboard.h"
 
-/* ---------------- Banner ---------------- */
+/* =====================================================================
+ * kernel_main
+ *
+ * Ordem de boot:
+ *   1. VGA        — para conseguirmos imprimir qualquer coisa
+ *   2. Multiboot  — validar magic e coletar RAM/módulos
+ *   3. GDT        — segmentos do kernel
+ *   4. IDT + ISR  — exceções (isr0..31)
+ *   5. IRQ        — IRQs de hardware (irq0..15) + PIC
+ *   6. Paging     — substitui o PD bootstrap pelo definitivo
+ *   7. Heap       — malloc/calloc/realloc/free
+ *   8. Drivers    — teclado, etc.
+ *   9. sti        — habilita interrupções
+ *  10. Demo + loop principal
+ * ===================================================================== */
+void kernel_main(uint32_t magic, struct multiboot_info *mbi) {
 
-static void draw_banner(void)
-{
-    vga_print("##################################################\n");
-    vga_print("#  _   _           _       _        _____ _____  #\n");
-    vga_print("# | | | |         | |     | |      |  _  /  ___| #\n");
-    vga_print("# | | | |_ __   __| | __ _| |_ ___ | | | \\ `--.  #\n");
-    vga_print("# | | | | '_ \\ / _` |/ _` | __/ _ \\| | | |`--. \\ #\n");
-    vga_print("# | |_| | |_) | (_| | (_| | ||  __/\\ \\_/ /\\__/ / #\n");
-    vga_print("#  \\___/| .__/ \\__,_|\\__,_|\\__\\___| \\___/\\____/  #\n");
-    vga_print("#       | |                                      #\n");
-    vga_print("#       |_|                                      #\n");
-    vga_print("##################################################\n");
-    vga_print("#          UpOS V1.0 Shell! (11/9/2026)          #\n");
-    vga_print("#              By Eduardo Davi MS                #\n");
-    vga_print("##################################################\n");
-}
-
-static void draw_shell(void)
-{
-    vga_print("\nUpOS> ");
-}
-
-/* ---------------- Shell ---------------- */
-
-#define CMD_MAX 128
-static char cmd[CMD_MAX];
-
-static void cmd_clear(void)
-{
-    for (int i = 0; i < CMD_MAX; i++) cmd[i] = '\0';
-}
-
-static void cmd_help(void)
-{
-    vga_print("\nhelp        - mostra essa ajuda");
-    vga_print("\nbanner      - desenha o banner");
-    vga_print("\nclear       - limpa a tela");
-    vga_print("\nshutdown    - desliga o computador");
-    vga_print("\nreboot      - reinicia o computador");
-    vga_print("\n");
-}
-
-static void execute(void)
-{
-    if (cmd[0] == '\0') {
-        /* Comando vazio: não faz nada */
-        return;
-    }
-
-    if (!strcmp(cmd, "help")) {
-        cmd_help();
-    }
-    else if (!strcmp(cmd, "banner")) {
-        vga_putchar('\n');
-        draw_banner();
-    }
-    else if (!strcmp(cmd, "clear")) {
-        vga_clear();
-    }
-    else if (!strcmp(cmd, "shutdown")) {
-        vga_print("\nDesligando...\n");
-        shutdown();
-    }
-    else if (!strcmp(cmd, "reboot")) {
-        vga_print("\nReiniciando...\n");
-        reboot();
-    }
-    else {
-        vga_print("\nComando desconhecido: ");
-        vga_print(cmd);
-        vga_print("\nUse 'help' para ver os comandos.\n");
-    }
-}
-
-static void shell(void)
-{
-    vga_clear();
-    draw_banner();
-    cmd_clear();
-    draw_shell();
-
-    int pos = 0;
-
-    for (;;) {
-        if (!kbd_has_event) {
-            __asm__ volatile ("hlt");
-            continue;
-        }
-
-        KBD_Event_t key = kbd_gete();
-
-        /* Só processa quando a tecla foi realmente pressionada */
-        if (key.state != KS_PRESSED) continue;
-
-        if (key.filters.printable) {
-            if (pos < CMD_MAX - 1) {
-                vga_putchar(key.character);
-                cmd[pos++] = key.character;
-                cmd[pos]   = '\0';
-            }
-            /* Se buffer cheio, ignora silenciosamente */
-        }
-        else if (key.keycode == KEY_BACKSPACE) {
-            if (pos > 0) {
-                pos--;
-                cmd[pos] = '\0';
-                vga_backspace();
-            }
-        }
-        else if (key.keycode == KEY_RETURN) {
-            execute();
-            cmd_clear();
-            pos = 0;
-            draw_shell();
-        }
-    }
-}
-
-/* ---------------- Entrada do kernel ---------------- */
-
-void kernel_main(void)
-{
+    /* -----------------------------------------------------------------
+     * 1. VGA — primeira coisa, precisamos imprimir
+     * ----------------------------------------------------------------- */
     vga_init();
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
 
-    gdt_init();
-    idt_init();
-    irq_install();
+    vga_printf_color(VGA_LIGHT_GREEN, VGA_BLACK,
+                     "====================================\n");
+    vga_printf_color(VGA_LIGHT_GREEN, VGA_BLACK,
+                     "  UpdateOS  -  boot\n");
+    vga_printf_color(VGA_LIGHT_GREEN, VGA_BLACK,
+                     "====================================\n");
 
-    kbd_init();
-
-    __asm__ volatile ("sti");
-
-    acpi_init();
-
-    vga_print("ACPI: ");
-    vga_print(acpi_ready ? "OK\n" : "nao encontrado\n");
-
-    shell();
-
-    /* Nunca chega aqui, mas por segurança: */
-    for (;;) {
-        __asm__ volatile ("cli; hlt");
+    /* -----------------------------------------------------------------
+     * 2. Multiboot2
+     * ----------------------------------------------------------------- */
+    if (!mboot_verify_magic(magic)) {
+        vga_printf_color(VGA_LIGHT_RED, VGA_BLACK,
+                         "[FATAL] magic Multiboot2 invalido: 0x%08x\n"
+                         "        esperado: 0x%08x\n",
+                         magic, MULTIBOOT2_BOOTLOADER_MAGIC);
+        for (;;) __asm__ volatile("cli; hlt");
     }
+
+    if (!mboot_is_valid(mbi)) {
+        vga_printf_color(VGA_LIGHT_RED, VGA_BLACK,
+                         "[FATAL] mbi invalido\n");
+        for (;;) __asm__ volatile("cli; hlt");
+    }
+
+    /* Resumo de uma linha do bootloader + RAM + módulos */
+    mboot_summary(mbi);
+
+    const char *bl = mboot_bootloader(mbi);
+    if (bl) vga_printf("  bootloader : %s\n", bl);
+
+    const char *cmd = mboot_cmdline(mbi);
+    if (cmd && *cmd) vga_printf("  cmdline    : \"%s\"\n", cmd);
+
+    /* -----------------------------------------------------------------
+     * 3. GDT
+     * ----------------------------------------------------------------- */
+    gdt_init();
+    vga_printf("[ok] GDT\n");
+
+    /* -----------------------------------------------------------------
+     * 4. IDT + ISR (exceções 0..31)
+     * ----------------------------------------------------------------- */
+    idt_init();
+    isr_init();
+    vga_printf("[ok] IDT + ISR (excecoes)\n");
+
+    /* -----------------------------------------------------------------
+     * 5. IRQ (hardware) + PIC
+     * ----------------------------------------------------------------- */
+    irq_install();
+    vga_printf("[ok] IRQ + PIC\n");
+
+    /* -----------------------------------------------------------------
+     * 6. Paging
+     *
+     * O boot.asm ja ativou uma paginacao bootstrap cobrindo 16 MiB.
+     * Agora instalamos o Page Directory definitivo, cobrindo toda a RAM.
+     * ----------------------------------------------------------------- */
+    uint32_t mem_bytes = mboot_mem_bytes(mbi);
+    if (mem_bytes == 0) {
+        vga_printf_color(VGA_YELLOW, VGA_BLACK,
+                         "[!] RAM nao detectada, assumindo 128 MiB\n");
+        mem_bytes = 128u * 1024u * 1024u;
+    }
+
+    paging_init(mem_bytes);
+    vga_printf("[ok] Paging   - RAM=%u MiB  frames: %u/%u livres\n",
+               mem_bytes / (1024u * 1024u),
+               pmm_free_frames(), pmm_total_frames());
+
+    /* -----------------------------------------------------------------
+     * 7. Heap (malloc family)
+     * ----------------------------------------------------------------- */
+    heap_init();
+    vga_printf("[ok] Heap     - %u KiB VA reservado\n",
+               (uint32_t)(heap_total() / 1024));
+
+    /* -----------------------------------------------------------------
+     * 8. Drivers
+     * ----------------------------------------------------------------- */
+    kbd_init();
+    vga_printf("[ok] Teclado\n");
+
+    /* -----------------------------------------------------------------
+     * 9. Habilita interrupcoes
+     * ----------------------------------------------------------------- */
+    __asm__ volatile("sti");
+    vga_printf("[ok] Interrupcoes habilitadas\n");
+
+    /* -----------------------------------------------------------------
+     * 10. Testes rápidos (remova quando nao precisar mais)
+     * ----------------------------------------------------------------- */
+    vga_printf_color(VGA_LIGHT_CYAN, VGA_BLACK, "\n--- self-test ---\n");
+
+    /* Teste do heap: alocar, escrever, realocar, liberar */
+    {
+        char *buf = (char *)malloc(64);
+        if (buf) {
+            for (int i = 0; i < 63; i++) buf[i] = 'A' + (i % 26);
+            buf[63] = '\0';
+            vga_printf("  malloc(64)  -> %p  \"%s\"\n", (void *)buf, buf);
+
+            char *big = (char *)realloc(buf, 4096);
+            if (big) {
+                vga_printf("  realloc(4K) -> %p\n", (void *)big);
+                free(big);
+            } else {
+                free(buf);
+            }
+        }
+
+        int *arr = (int *)calloc(128, sizeof(int));
+        if (arr) {
+            arr[0] = 0xDEADBEEF;
+            arr[127] = 0xCAFEBABE;
+            vga_printf("  calloc(128) -> %p  arr[0]=0x%08x arr[127]=0x%08x\n",
+                       (void *)arr, arr[0], arr[127]);
+            free(arr);
+        }
+    }
+
+    /* Teste do paging: traduzir endereço virtual -> físico */
+    vga_printf("  virt %p -> phys %p\n",
+               (void *)0x00100000, (void *)paging_get_physical(0x00100000));
+
+    heap_dump();
+
+    /* -----------------------------------------------------------------
+     * 11. Pronto
+     * ----------------------------------------------------------------- */
+    vga_printf_color(VGA_LIGHT_GREEN, VGA_BLACK,
+                     "\n[UpdateOS] Pronto.\n");
+    vga_set_color(VGA_LIGHT_GREY, VGA_BLACK);
+
+    /* -----------------------------------------------------------------
+     * Loop principal
+     * ----------------------------------------------------------------- */
+    for (;;) {
+    	if (kbd_has_event) vga_putchar(kbd_getc());
+	    __asm__ volatile("hlt");
+	}
 }

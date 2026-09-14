@@ -37,4 +37,13 @@ void vga_set_color(vga_color_t fg, vga_color_t bg);
 void vga_set_cursor(int x, int y);
 void vga_update_cursor(void);
 
+/* Saída formatada (estilo printf reduzido).
+ * Suporta: %c %s %d %i %u %x %X %p %% e largura mínima (ex.: %08x).
+ * Sem ponto flutuante.
+ * Retorna o número de caracteres escritos (sem contar '\0'). */
+int  vga_printf(const char *fmt, ...);
+
+/* Versão com cor explícita, sem alterar a cor padrão global. */
+int  vga_printf_color(vga_color_t fg, vga_color_t bg, const char *fmt, ...);
+
 #endif /* DRIVERS_VGA_H */

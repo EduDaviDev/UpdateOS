@@ -1,0 +1,3 @@
+complete ele (se estiver faltando algo) e crie o mboot.c:
+
+get_mboot_(para todas as tags)_tag();

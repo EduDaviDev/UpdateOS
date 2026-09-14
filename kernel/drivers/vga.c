@@ -1,5 +1,6 @@
 #include "vga.h"
 #include "../io.h"
+#include <stdarg.h>
 
 /* Buffer de memória do modo texto VGA */
 #define VGA_MEMORY  ((volatile uint16_t *)0xB8000)
@@ -175,4 +176,174 @@ void vga_update_cursor(void)
 
     outb(VGA_CTRL_REG, 0x0E);
     outb(VGA_CTRL_DATA, (uint8_t)((pos >> 8) & 0xFF));
+}
+
+/* ---------------- Helpers de formatação ---------------- */
+
+/* Converte uint32 em string numa base (2..16). Devolve o tamanho. */
+static int utoa_base(uint32_t value, char *buf, int base, int uppercase)
+{
+    const char *digits = uppercase
+        ? "0123456789ABCDEF"
+        : "0123456789abcdef";
+    char tmp[32];
+    int i = 0;
+
+    if (value == 0) {
+        tmp[i++] = '0';
+    } else {
+        while (value) {
+            tmp[i++] = digits[value % (uint32_t)base];
+            value /= (uint32_t)base;
+        }
+    }
+
+    /* tmp está invertido; copia ao contrário */
+    int len = i;
+    for (int j = 0; j < len; j++)
+        buf[j] = tmp[len - 1 - j];
+    buf[len] = '\0';
+    return len;
+}
+
+/* Emite uma string com padding à esquerda.
+ * pad = caractere ('0' ou ' '), width = largura mínima. */
+static int emit_padded(const char *s, int len, char pad, int width)
+{
+    int written = 0;
+    for (int i = len; i < width; i++) {
+        vga_putchar(pad);
+        written++;
+    }
+    for (int i = 0; i < len; i++) {
+        vga_putchar(s[i]);
+        written++;
+    }
+    return written;
+}
+
+/* Núcleo: recebe va_list para permitir reuso em cores diferentes. */
+static int vga_vprintf_impl(const char *fmt, va_list ap)
+{
+    int written = 0;
+
+    for (const char *p = fmt; *p; p++) {
+        if (*p != '%') {
+            vga_putchar(*p);
+            written++;
+            continue;
+        }
+
+        p++; /* consome '%' */
+
+        /* Flags: '0' para zero-padding */
+        char pad = ' ';
+        if (*p == '0') { pad = '0'; p++; }
+
+        /* Largura mínima (apenas dígitos decimais) */
+        int width = 0;
+        while (*p >= '0' && *p <= '9') {
+            width = width * 10 + (*p - '0');
+            p++;
+        }
+
+        switch (*p) {
+        case 'c': {
+            char c = (char)va_arg(ap, int);
+            vga_putchar(c);
+            written++;
+            break;
+        }
+        case 's': {
+            const char *s = va_arg(ap, const char *);
+            if (!s) s = "(null)";
+            int len = 0;
+            while (s[len]) len++;
+            written += emit_padded(s, len, pad, width);
+            break;
+        }
+        case 'd':
+        case 'i': {
+            int32_t v = va_arg(ap, int32_t);
+            char buf[32];
+            int len;
+            if (v < 0) {
+                /* Imprime '-' e trata o resto como positivo */
+                vga_putchar('-');
+                written++;
+                uint32_t uv = (uint32_t)(-(int64_t)v);
+                len = utoa_base(uv, buf, 10, 0);
+            } else {
+                len = utoa_base((uint32_t)v, buf, 10, 0);
+            }
+            written += emit_padded(buf, len, pad, width);
+            break;
+        }
+        case 'u': {
+            uint32_t v = va_arg(ap, uint32_t);
+            char buf[32];
+            int len = utoa_base(v, buf, 10, 0);
+            written += emit_padded(buf, len, pad, width);
+            break;
+        }
+        case 'x':
+        case 'X': {
+            uint32_t v = va_arg(ap, uint32_t);
+            char buf[32];
+            int len = utoa_base(v, buf, 16, (*p == 'X'));
+            written += emit_padded(buf, len, pad, width);
+            break;
+        }
+        case 'p': {
+            uint32_t v = (uint32_t)va_arg(ap, void *);
+            vga_putchar('0'); vga_putchar('x'); written += 2;
+            char buf[32];
+            int len = utoa_base(v, buf, 16, 0);
+            /* Preenche com zeros até 8 dígitos (endereço de 32 bits) */
+            written += emit_padded(buf, len, '0', 8);
+            break;
+        }
+        case '%': {
+            vga_putchar('%');
+            written++;
+            break;
+        }
+        case '\0':
+            /* '%' no fim da string: trata como literal */
+            vga_putchar('%');
+            written++;
+            return written;
+        default:
+            /* Especificador desconhecido: imprime literal */
+            vga_putchar('%');
+            vga_putchar(*p);
+            written += 2;
+            break;
+        }
+    }
+
+    return written;
+}
+
+int vga_printf(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    int written = vga_vprintf_impl(fmt, ap);
+    va_end(ap);
+    return written;
+}
+
+int vga_printf_color(vga_color_t fg, vga_color_t bg, const char *fmt, ...)
+{
+    uint8_t saved = vga_default_attr;
+    vga_default_attr = (uint8_t)((bg << 4) | (fg & 0x0F));
+
+    va_list ap;
+    va_start(ap, fmt);
+    int written = vga_vprintf_impl(fmt, ap);
+    va_end(ap);
+
+    vga_default_attr = saved;
+    return written;
 }

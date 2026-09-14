@@ -6,35 +6,34 @@ ENTRY(_start)
 
 SECTIONS
 {
-    /* O kernel é carregado a partir de 1 MiB */
     . = 1M;
 
-    /* Seção de código + dados somente leitura */
+    /* Símbolo do início do kernel (alinhado a 4 KiB) */
+    kernel_start = .;
+
     .text BLOCK(4K) : ALIGN(4K)
     {
         *(.multiboot_header)
         *(.text)
     }
 
-    /* Dados somente leitura */
     .rodata BLOCK(4K) : ALIGN(4K)
     {
         *(.rodata)
     }
 
-    /* Dados inicializados */
     .data BLOCK(4K) : ALIGN(4K)
     {
         *(.data)
     }
 
-    /* Dados não inicializados (BSS) */
     .bss BLOCK(4K) : ALIGN(4K)
     {
         *(COMMON)
         *(.bss)
     }
 
-    /* Símbolos para o final do kernel (útil para alocador de memória) */
+    /* Fim do kernel — útil para o alocador de frames */
+    . = ALIGN(4K);
     kernel_end = .;
 }

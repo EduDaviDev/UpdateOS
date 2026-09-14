@@ -5,8 +5,9 @@
 #include <stdbool.h>
 #include "keycodes.h"
 
-extern bool kbd_has_event;
-extern bool kbd_initialized;
+/* keyboard.h */
+extern volatile bool kbd_has_event;
+extern volatile bool kbd_initialized;
 
 typedef enum {
 	// key pressed

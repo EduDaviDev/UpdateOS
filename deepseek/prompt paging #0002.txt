@@ -1,0 +1,9 @@
+crie o completo, com essas funções adicionais:
+
+mboot_verify_magic(magic);
+
+mboot_get_module_count();
+mboot_read_module(module);
+mboot_read_module_by_number(module);
+
+...(crie várias funções úteis)
