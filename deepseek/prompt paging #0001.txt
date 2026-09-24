@@ -1,0 +1,10 @@
+Gihub: https://github.com/EduDaviDev/UpdateOS
+
+Quero criar os arquivos:
+
+	kernel/cpu/paging.c				Implementa paginação
+	kernel/cpu/paging.h				Declaração da paginação
+	kernel/cpu/heap.c				Heap para Malloc/Calloc/Realloc
+	kernel/cpu/heap.h				Declaração do Heap
+	kernel/libs/memory.c			Malloc/Calloc/Realloc (inclui string.h para funções como memcpy, memcmp)
+	kernel/libs/memory.h			Declaração das funções

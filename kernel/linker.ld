@@ -9,6 +9,8 @@ SECTIONS
     /* O kernel é carregado a partir de 1 MiB */
     . = 1M;
 
+	_kernel_start = .;
+
     /* Seção de código + dados somente leitura */
     .text BLOCK(4K) : ALIGN(4K)
     {
@@ -36,5 +38,5 @@ SECTIONS
     }
 
     /* Símbolos para o final do kernel (útil para alocador de memória) */
-    kernel_end = .;
+	_kernel_end = .;
 }

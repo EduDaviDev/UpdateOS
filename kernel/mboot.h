@@ -48,6 +48,23 @@ struct multiboot_tag_framebuffer {
     uint16_t reserved;
 } __attribute__((packed));
 
+/* Entrada individual do memory map (tag MMAP) */
+struct multiboot_mmap_entry {
+    uint64_t addr;      /* Endereço base */
+    uint64_t len;       /* Comprimento em bytes */
+    uint32_t type;      /* 1 = disponível, 3 = ACPI reclaimable, ... */
+    uint32_t zero;      /* Reservado (deve ser 0) */
+} __attribute__((packed));
+
+/* Tag completa do memory map */
+struct multiboot_tag_mmap {
+    uint32_t type;              /* = MULTIBOOT_TAG_TYPE_MMAP (6) */
+    uint32_t size;              /* Tamanho total desta tag */
+    uint32_t entry_size;        /* Tamanho de cada entrada (geralmente 24) */
+    uint32_t entry_version;     /* Versão do formato (0) */
+    struct multiboot_mmap_entry entries[];
+} __attribute__((packed));
+
 /* Estrutura principal de informações Multiboot2 */
 struct multiboot_info {
     uint32_t total_size;

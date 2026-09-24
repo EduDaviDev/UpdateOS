@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "drivers/serial.h"
 
 /* ============================================================
  *  OUT — envia dados para uma porta de I/O

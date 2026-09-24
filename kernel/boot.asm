@@ -24,23 +24,40 @@ mb2_header_end:
 section .text
 global _start
 extern kernel_main
+extern paging_init_early
 
 _start:
-    ; A stack ainda não está configurada. O GRUB não garante uma stack válida.
-    ; Vamos configurar uma stack temporária de 16 KiB.
+    ; Configurar stack temporária
     mov esp, stack_top
-
-    ; Limpar o registrador de flags de interrupção (opcional, mas seguro)
     cli
 
-    ; Chamar o kernel_main em C
-    ; Os argumentos Multiboot2 (magic e info) são passados em EAX e EBX
-    ; Vamos passá-los como argumentos para kernel_main
-    push ebx        ; ponteiro para a estrutura de informações Multiboot2
-    push eax        ; magic number (deve ser 0x36d76289)
+    ; -------------------------------------------------------------------
+    ; 1) PRESERVAR os argumentos do Multiboot2 ANTES de chamar a paginação
+    ;    (paging_init_early clobbera EAX)
+    ; -------------------------------------------------------------------
+    push ebx        ; info (struct multiboot2)
+    push eax        ; magic (0x36D76289)
+
+    ; -------------------------------------------------------------------
+    ; 2) Inicializar paginação (identity map 0..4 MiB, CR3, CR0.PG=1)
+    ; -------------------------------------------------------------------
+    call paging_init_early
+
+    ; -------------------------------------------------------------------
+    ; 3) Recuperar os argumentos da stack
+    ;    A call empilha/desempilha o return address sozinha, então os
+    ;    pushes de antes continuam no topo.
+    ; -------------------------------------------------------------------
+    pop eax         ; magic
+    pop ebx         ; info
+
+    ; -------------------------------------------------------------------
+    ; 4) Passar para kernel_main (cdecl: último argumento primeiro)
+    ; -------------------------------------------------------------------
+    push ebx        ; 2º arg (mb_info)
+    push eax        ; 1º arg (magic)
     call kernel_main
 
-    ; Se kernel_main retornar, entra em loop infinito
 .halt:
     hlt
     jmp .halt
@@ -48,5 +65,5 @@ _start:
 section .bss
 align 16
 stack_bottom:
-    resb 16384      ; 16 KiB de stack
+    resb 16384
 stack_top:
