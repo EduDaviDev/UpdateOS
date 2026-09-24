@@ -1,0 +1,8 @@
+ideia: adicionar e implementar o video.c e .h (framebuffer)
+
+funções:
+	gfx_init();
+	gfx_putpixel(x,y,col);
+	gfx_clear(col);
+
+	Por quê só três funções? Porque isso é APENAS um driver gráfico simples, não um directx! depois eu crio o UPDGR ( UPdate Default Graphics Render )

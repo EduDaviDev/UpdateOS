@@ -1,6 +1,8 @@
 #include "isr.h"
 #include "idt.h"
 
+#include "page_fault.h"
+
 isr_t interrupt_handlers[256];
 
 void register_interrupt_handler(uint8_t n, isr_t handler) {
@@ -22,5 +24,5 @@ void isr_handler(registers_t *regs) {
 }
 
 void isr_install(void) {
-    /* Reservado para instalar handlers padrão no futuro (ex.: page fault) */
+    register_interrupt_handler(14, (isr_t)page_fault_handler);
 }

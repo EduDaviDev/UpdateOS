@@ -14,7 +14,7 @@ QEMU     = qemu-system-i386
 ASMFLAGS = -f elf32
 CFLAGS   = -m32 -ffreestanding -nostdlib -fno-builtin \
            -fno-stack-protector -fno-pic -Wall -Wextra \
-           -Ikernel -Ikernel/drivers
+           -Ikernel -Ikernel/drivers -g
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
 LDFLAGS  = -m elf_i386 -T kernel/linker.ld
 

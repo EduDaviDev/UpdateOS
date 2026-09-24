@@ -32,7 +32,7 @@ typedef enum
 extern int vga_pos_x;
 extern int vga_pos_y;
 
-/* Cor padrão usada por vga_putcharhar / vga_print */
+/* Cor padrão usada por vga_putchar / vga_print */
 extern uint8_t vga_default_attr;
 
 /* Inicialização */
@@ -40,7 +40,7 @@ void vga_init(void);
 void vga_clear(void);
 
 /* Saída de caracteres */
-void vga_putchar(char c);
+void vga_putc(char c);
 void vga_print(const char *s);
 void vga_print_color(const char *s, vga_color_t fg, vga_color_t bg);
 void vga_backspace(void);

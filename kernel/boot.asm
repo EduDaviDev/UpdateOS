@@ -14,11 +14,20 @@ mb2_header_start:
     dd MB2_HEADER_LEN
     dd MB2_CHECKSUM
 
-    ; Tag de fim (obrigatória)
+    ; ---- Framebuffer request tag (type=5) ----
     align 8
-    dw 0        ; type = 0 (end tag)
-    dw 0        ; flags
-    dd 8        ; size = 8
+    dw 5            ; type  = 5 (framebuffer request)
+    dw 1            ; flags = 1 (optional: continuar mesmo se não suportado)
+    dd 20           ; size  = 20 bytes
+    dd 1024         ; width desejada
+    dd 768          ; height desejada
+    dd 32           ; depth em bits (32bpp)
+
+    ; ---- End tag (obrigatória) ----
+    align 8
+    dw 0            ; type  = 0
+    dw 0            ; flags
+    dd 8            ; size  = 8
 mb2_header_end:
 
 section .text

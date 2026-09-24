@@ -72,4 +72,8 @@ struct multiboot_info {
     struct multiboot_tag tags[];
 } __attribute__((packed));
 
+/* Ponteiro global para a estrutura Multiboot2.
+ * Preenchido no kernel_main() logo no início. */
+extern struct multiboot_info *g_multiboot_info;
+
 #endif /* MBOOT_H */

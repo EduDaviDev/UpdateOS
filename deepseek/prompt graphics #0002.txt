@@ -1,0 +1,6 @@
+crie o kernel.c assim:
+
+	ele faz todos os autotestes em serial e quando terminar ele mostra na tela:
+
+	Testes=X FAIL=Y SKIP=Z OK=?
+	Verifique o serial.log

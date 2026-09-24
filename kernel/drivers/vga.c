@@ -65,7 +65,7 @@ void vga_clear(void)
 	vga_update_cursor();
 }
 
-void vga_putchar(char c)
+void vga_putc(char c)
 {
 	switch (c)
 	{
@@ -133,7 +133,7 @@ void vga_print(const char *s)
 {
 	while (*s)
 	{
-		vga_putchar(*s++);
+		vga_putc(*s++);
 	}
 }
 
