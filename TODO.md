@@ -14,5 +14,5 @@
 - [x] Add Keyboard
 - [ ] Add Mouse
 - [ ] Add Timer
-- [ ] Add Graphics
+- [x] Add Graphics
 - [ ] Add Sound (PC Speaker)
