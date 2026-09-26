@@ -23,7 +23,7 @@
                 "panel": "shared",
                 "clear": true
             },
-            "detail": "Compila o UpdateOS via WSL (make)"
+            "detail": "Compile the UpdateOS (make)"
         },
         {
             "label": "run-qemu",
@@ -43,7 +43,7 @@
                 "panel": "dedicated",
                 "clear": true
             },
-            "detail": "Compila e executa a ISO no QEMU via WSL"
+            "detail": "Execute the ISO on QEMU"
         },
         {
             "label": "clean-upos",
@@ -60,7 +60,58 @@
                 "reveal": "always",
                 "panel": "shared"
             },
-            "detail": "Remove a pasta build/ via WSL"
-        }
+            "detail": "Remove the folder build/"
+        },
+		{
+            "label": "disk-format",
+            "type": "shell",
+            "command": "wsl",
+            "args": [
+                "make", "disk_format"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "detail": "Format the disk"
+        },
+		{
+            "label": "disk-update",
+            "type": "shell",
+            "command": "wsl",
+            "args": [
+                "make", "disk_update"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "detail": "Sync disk <-> folder"
+        },
+		{
+            "label": "disk_clean",
+            "type": "shell",
+            "command": "wsl",
+            "args": [
+                "make", "disk-clean"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "shared"
+            },
+            "detail": "Delete disk"
+        },
     ]
 }

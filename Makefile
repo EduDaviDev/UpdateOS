@@ -9,6 +9,8 @@ CXX      = g++
 LD       = ld
 GRUB     = grub-mkrescue
 QEMU     = qemu-system-i386
+MCOPY    = mcopy
+MDIR     = mdir
 DD       = dd
 MKFSFAT  = mkfs.vfat
 
@@ -38,10 +40,11 @@ ISO_FILE     = $(BUILD_DIR)/UpOS.iso
 GRUB_CFG_SRC = $(KERNEL_DIR)/grub.cfg
 GRUB_CFG_DST = $(GRUB_DIR)/grub.cfg
 
-# ---- Disco FAT32 (raiz do sistema de arquivos) ----
-DISK_IMG     = UpOS.img
-DISK_SIZE_MB = 512
+# ---- Disco FAT32 ----
+DISK_IMG     = $(BUILD_DIR)/updisk.img
+DISK_SIZE_MB = 64
 DISK_LABEL   = UPOS
+DISK_DIR     = disk
 
 # ---- Fontes ----
 C_SOURCES    := $(shell find $(KERNEL_DIR) -name '*.c')
@@ -68,9 +71,9 @@ ALL_DEPENDS  := $(C_DEPENDS) $(CXX_DEPENDS)
 # Alvos principais
 # ============================================================
 
-.PHONY: all clean run iso kernel debug disk disk-clean
+.PHONY: all clean run iso kernel debug disk_format disk_update disk_delete
 
-all: $(ISO_FILE) $(DISK_IMG)
+all: $(ISO_FILE) disk_update
 
 # ---- Linkagem do kernel ----
 kernel: $(KERNEL_ELF)
@@ -114,31 +117,64 @@ $(ISO_FILE): $(KERNEL_ELF) $(GRUB_CFG_SRC)
 	$(GRUB) -o $(ISO_FILE) $(ISO_DIR)
 
 # ---- Criação do disco FAT32 (a raiz do FS é a raiz do disco) ----
+# ============================================================
+# Seção DISK — Gerenciamento da imagem FAT32 (UpOS.img)
+# ============================================================
+#
+#   disk_format  → recria a imagem FAT32 do zero (APAGA TUDO)
+#   disk_update  → sincroniza disk/ <-> imagem (merge bidirecional)
+#   disk_delete  → remove a imagem sem recriar
+#
+# Requer: dosfstools (mkfs.vfat) + mtools (mcopy, mdir)
+# ============================================================
+
+# ---- Garantia de existência (para run/disk_update) ----
 $(DISK_IMG):
-	@echo "==> Criando disco FAT32 de $(DISK_SIZE_MB) MB: $@"
-	@$(DD) if=/dev/zero of=$@ bs=1M count=$(DISK_SIZE_MB) status=none 2>/dev/null || \
-		$(DD) if=/dev/zero of=$@ bs=1M count=$(DISK_SIZE_MB)
-	@$(MKFSFAT) -F 32 -n $(DISK_LABEL) $@
-	@echo "==> Disco pronto. Raiz FAT32 vazia, pronta para uso."
+	@$(MAKE) --no-print-directory disk_format
 
-disk: $(DISK_IMG)
+# ---- Formatar: cria a imagem do zero ----
+disk_format:
+	@echo "==> Formatando $(DISK_IMG) ($(DISK_SIZE_MB) MB, label $(DISK_LABEL))"
+	@rm -f $(DISK_IMG)
+	@$(DD) if=/dev/zero of=$(DISK_IMG) bs=1M count=$(DISK_SIZE_MB) status=none 2>/dev/null || \
+		$(DD) if=/dev/zero of=$(DISK_IMG) bs=1M count=$(DISK_SIZE_MB)
+	@$(MKFSFAT) -F 32 -n $(DISK_LABEL) $(DISK_IMG)
+	@echo "==> Disco pronto (raiz FAT32 vazia)."
 
-disk-clean:
-	@echo "==> Removendo disco (todos os dados serao perdidos)"
-	rm -f $(DISK_IMG)
+# ---- Atualizar: sincroniza pasta <-> imagem ----
+disk_update: $(DISK_IMG)
+	@echo "==> Sincronizando $(DISK_DIR)/ <-> $(DISK_IMG)"
+	@mkdir -p $(DISK_DIR)
+
+	@echo "  [1/2] Enviando $(DISK_DIR)/ -> imagem..."
+	@if [ -n "$$(ls -A $(DISK_DIR) 2>/dev/null)" ]; then \
+		$(MCOPY) -o -i $(DISK_IMG) -s $(DISK_DIR)/* ::/ ; \
+	else \
+		echo "        ($(DISK_DIR)/ vazia, nada a enviar)"; \
+	fi
+
+	@echo "  [2/2] Trazendo imagem -> $(DISK_DIR)/..."
+	@$(MCOPY) -n -o -i $(DISK_IMG) ::/ $(DISK_DIR)
+
+	@echo "==> Sincronizacao concluida."
+
+# ---- Deletar: remove a imagem ----
+disk_delete:
+	@echo "==> Removendo $(DISK_IMG) (todos os dados serao perdidos)"
+	@rm -f $(DISK_IMG)
+	@echo "==> Feito."
 
 # ---- Executar no QEMU ----
-run: $(ISO_FILE) $(DISK_IMG)
+run: $(ISO_FILE)
 	@mkdir -p $(LOG_DIR)
 	@echo "==> Log do QEMU sera salvo em $(QEMU_LOG)"
-	cmd.exe /c "if exist $(QEMU_LOG) del /q $(QEMU_LOG)" 2>/dev/null || true
-	cmd.exe /c "$(QEMU) -cdrom $(ISO_FILE) -boot d \
+	$(QEMU) -cdrom $(ISO_FILE) -boot d \
 		-drive file=$(DISK_IMG),format=raw,if=ide,index=0 \
 		-rtc base=localtime \
 		-no-reboot -no-shutdown \
 		-d int,cpu_reset \
 		-D $(QEMU_LOG) \
-		-serial file:$(LOG_DIR)/serial.log"
+		-serial file:$(LOG_DIR)/serial.log
 
 debug: run
 	@echo ""
