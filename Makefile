@@ -9,6 +9,8 @@ CXX      = g++
 LD       = ld
 GRUB     = grub-mkrescue
 QEMU     = qemu-system-i386
+DD       = dd
+MKFSFAT  = mkfs.vfat
 
 # ---- Flags ----
 ASMFLAGS = -f elf32
@@ -36,13 +38,18 @@ ISO_FILE     = $(BUILD_DIR)/UpOS.iso
 GRUB_CFG_SRC = $(KERNEL_DIR)/grub.cfg
 GRUB_CFG_DST = $(GRUB_DIR)/grub.cfg
 
+# ---- Disco FAT32 (raiz do sistema de arquivos) ----
+DISK_IMG     = UpOS.img
+DISK_SIZE_MB = 512
+DISK_LABEL   = UPOS
+
 # ---- Fontes ----
 C_SOURCES    := $(shell find $(KERNEL_DIR) -name '*.c')
 CXX_SOURCES  := $(shell find $(KERNEL_DIR) -name '*.cpp' -o -name '*.c++')
 ASM_SOURCES  := $(shell find $(KERNEL_DIR) -name '*.asm')
 GAS_SOURCES  := $(shell find $(KERNEL_DIR) -name '*.s')
 
-# ---- Objetos (espelhando a estrutura em build/kernel/) ----
+# ---- Objetos ----
 C_OBJECTS    := $(patsubst $(KERNEL_DIR)/%.c,   $(OBJ_DIR)/%.o, $(C_SOURCES))
 CXX_OBJECTS  := $(patsubst $(KERNEL_DIR)/%.cpp, $(OBJ_DIR)/%.o, $(CXX_SOURCES))
 CXX_OBJECTS  := $(patsubst $(KERNEL_DIR)/%.c++, $(OBJ_DIR)/%.o, $(CXX_OBJECTS))
@@ -61,9 +68,9 @@ ALL_DEPENDS  := $(C_DEPENDS) $(CXX_DEPENDS)
 # Alvos principais
 # ============================================================
 
-.PHONY: all clean run iso kernel debug
+.PHONY: all clean run iso kernel debug disk disk-clean
 
-all: $(ISO_FILE)
+all: $(ISO_FILE) $(DISK_IMG)
 
 # ---- Linkagem do kernel ----
 kernel: $(KERNEL_ELF)
@@ -99,24 +106,35 @@ $(OBJ_DIR)/%.o: $(KERNEL_DIR)/%.s
 # ---- Criação da ISO ----
 $(ISO_FILE): $(KERNEL_ELF) $(GRUB_CFG_SRC)
 	@mkdir -p $(BOOT_DIR) $(GRUB_DIR) $(SYSTEM_DIR)
-	# Copiar kernel ELF para /boot
 	cp $(KERNEL_ELF) $(BOOT_DIR)/upkernel.elf
-	# Copiar grub.cfg
 	cp $(GRUB_CFG_SRC) $(GRUB_CFG_DST)
-	# Copiar conteúdo de kernel/iso para /system
 	@if [ -d "$(KERNEL_DIR)/iso" ]; then \
 		cp -r $(KERNEL_DIR)/iso/* $(SYSTEM_DIR)/ 2>/dev/null || true; \
 	fi
-	# Gerar a ISO com grub-mkrescue
 	$(GRUB) -o $(ISO_FILE) $(ISO_DIR)
 
+# ---- Criação do disco FAT32 (a raiz do FS é a raiz do disco) ----
+$(DISK_IMG):
+	@echo "==> Criando disco FAT32 de $(DISK_SIZE_MB) MB: $@"
+	@$(DD) if=/dev/zero of=$@ bs=1M count=$(DISK_SIZE_MB) status=none 2>/dev/null || \
+		$(DD) if=/dev/zero of=$@ bs=1M count=$(DISK_SIZE_MB)
+	@$(MKFSFAT) -F 32 -n $(DISK_LABEL) $@
+	@echo "==> Disco pronto. Raiz FAT32 vazia, pronta para uso."
+
+disk: $(DISK_IMG)
+
+disk-clean:
+	@echo "==> Removendo disco (todos os dados serao perdidos)"
+	rm -f $(DISK_IMG)
+
 # ---- Executar no QEMU ----
-# ---- Executar no QEMU (com log em logs/qemu.log) ----
-run: $(ISO_FILE)
+run: $(ISO_FILE) $(DISK_IMG)
 	@mkdir -p $(LOG_DIR)
 	@echo "==> Log do QEMU sera salvo em $(QEMU_LOG)"
 	cmd.exe /c "if exist $(QEMU_LOG) del /q $(QEMU_LOG)" 2>/dev/null || true
-	cmd.exe /c "$(QEMU) -cdrom $(ISO_FILE) \
+	cmd.exe /c "$(QEMU) -cdrom $(ISO_FILE) -boot d \
+		-drive file=$(DISK_IMG),format=raw,if=ide,index=0 \
+		-rtc base=localtime \
 		-no-reboot -no-shutdown \
 		-d int,cpu_reset \
 		-D $(QEMU_LOG) \
@@ -128,6 +146,7 @@ debug: run
 	@tail -n 80 $(QEMU_LOG) 2>/dev/null || type $(QEMU_LOG)
 	@echo "=========================================="
 
+-include $(ALL_DEPENDS)
 # ---- Limpeza ----
 clean:
 	rm -rf $(BUILD_DIR)

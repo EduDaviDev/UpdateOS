@@ -1,448 +1,318 @@
-/* kernel.c - UpdateOS: verificacao de recursos do kernel
- *
- * Todos os autotestes imprimem SOMENTE no serial (COM1).
- * No final:
- *   - Se o framebuffer Multiboot2 estiver disponivel, desenha 3 barras:
- *       verde    = OK
- *       vermelho = FAIL
- *       amarelo  = SKIP
- *   - Caso contrario, cai para VGA texto com o resumo.
- */
-
+/*-----------------------------------------------------------------------*/
+/* kernel.c - Ponto de entrada do UpdateOS                               */
+/*                                                                       */
+/* Testa a integração completa:                                          */
+/*   ATA PIO  ->  diskio.c  ->  FatFS  ->  aplicação                     */
+/*   RTC      ->  get_fattime()  ->  timestamps dos arquivos             */
+/*-----------------------------------------------------------------------*/
 #include <stdint.h>
 #include <stddef.h>
 
-#include "cpu/page_fault.h"
-#include "cpu/paging.h"
-#include "cpu/heap.h"
-#include "cpu/pmm.h"
-#include "cpu/idt.h"
-#include "cpu/isr.h"
-#include "cpu/irq.h"
-#include "cpu/pic.h"
-#include "cpu/gdt.h"
-#include "libs/memory.h"
+#include "io.h"
 #include "libs/string.h"
-#include "drivers/vga.h"
+#include "libs/memory.h"
 #include "drivers/serial.h"
-#include "drivers/video.h"
-#include "mboot.h"
+#include "drivers/vga.h"
+#include "drivers/atapio.h"
+#include "drivers/rtc.h"
+#include "drivers/fatfs/ff.h"
 
-/* ------------------------------------------------------------------ */
-/*  Global Multiboot2 (definido em mboot.h como extern)                */
-/* ------------------------------------------------------------------ */
-struct multiboot_info *g_multiboot_info = NULL;
+/* ==================================================================== */
+/* Saída: usa serial e VGA ao mesmo tempo (se ambos existirem)          */
+/* ==================================================================== */
 
-/* ------------------------------------------------------------------ */
-/*  Contadores dos testes                                              */
-/* ------------------------------------------------------------------ */
-static int g_pass = 0;
-static int g_fail = 0;
-static int g_skip = 0;
-
-/* ================================================================== */
-/*  IMPRESSAO DE TESTES — TUDO VIA SERIAL                              */
-/* ================================================================== */
-static void test_result(int ok, const char *name) {
-    serial_print("  [");
-    if (ok) { serial_print("OK  "); g_pass++; }
-    else    { serial_print("FAIL"); g_fail++; }
-    serial_print("] ");
-    serial_print(name);
-    serial_putc('\n');
+static void kputs(const char *s) {
+    serial_print(s);   /* ajuste o nome se o seu serial.h usa outro */
+    vga_print(s);      /* ajuste o nome se o seu vga.h usa outro     */
 }
 
-static void test_skip(const char *name) {
-    serial_print("  [SKIP] ");
-    g_skip++;
-    serial_print(name);
-    serial_putc('\n');
+static void kputc(char c) {
+    char buf[2] = { c, 0 };
+    kputs(buf);
 }
 
-static void section(const char *title) {
-    serial_putc('\n');
-    serial_print("== ");
-    serial_print(title);
-    serial_print(" ==\n");
+static void kput_uint(uint32_t v) {
+    char buf[12];
+    int i = 10;
+    buf[11] = 0;
+    if (v == 0) { kputc('0'); return; }
+    while (v > 0 && i >= 0) {
+        buf[i--] = '0' + (v % 10);
+        v /= 10;
+    }
+    kputs(&buf[i + 1]);
 }
 
-/* ================================================================== */
-/*  TESTE 1: Multiboot2                                                */
-/* ================================================================== */
-static void check_multiboot(uint32_t magic, void *info_ptr) {
-    section("Multiboot2");
+static void kput_2digits(uint8_t v) {
+    kputc('0' + (v / 10));
+    kputc('0' + (v % 10));
+}
 
-    test_result(magic == MULTIBOOT2_BOOTLOADER_MAGIC, "magic 0x36D76289");
-    if (magic != MULTIBOOT2_BOOTLOADER_MAGIC) return;
+/* ==================================================================== */
+/* Impressão de data/hora                                                */
+/* ==================================================================== */
 
-    test_result(info_ptr != NULL, "info ptr != NULL");
-    if (!info_ptr) return;
+static void print_time(const char *label, const rtc_time_t *t) {
+    kputs(label);
+    kput_uint(t->year); kputc('-');
+    kput_2digits(t->month); kputc('-');
+    kput_2digits(t->day);   kputc(' ');
+    kput_2digits(t->hour);  kputc(':');
+    kput_2digits(t->minute);kputc(':');
+    kput_2digits(t->second);
+    kputs("\r\n");
+}
 
-    struct multiboot_info *info = (struct multiboot_info *)info_ptr;
-    uint8_t *p   = (uint8_t *)info->tags;
-    uint8_t *end = (uint8_t *)info + info->total_size;
+/* ==================================================================== */
+/* Tradução de FRESULT para texto                                        */
+/* ==================================================================== */
 
-    uint64_t ram_kib = 0;
-    uint32_t n_mmap  = 0;
-    int tem_basic_meminfo = 0;
+static const char *fr_str(FRESULT fr) {
+    switch (fr) {
+    case FR_OK:                 return "OK";
+    case FR_DISK_ERR:           return "erro de disco";
+    case FR_INT_ERR:            return "erro interno";
+    case FR_NOT_READY:          return "disco nao pronto";
+    case FR_NO_FILE:            return "arquivo nao encontrado";
+    case FR_NO_PATH:            return "caminho nao encontrado";
+    case FR_INVALID_NAME:       return "nome invalido";
+    case FR_DENIED:             return "acesso negado";
+    case FR_EXIST:              return "ja existe";
+    case FR_INVALID_OBJECT:     return "objeto invalido";
+    case FR_WRITE_PROTECTED:    return "protegido contra escrita";
+    case FR_INVALID_DRIVE:      return "drive invalido";
+    case FR_NOT_ENABLED:        return "volume nao montado";
+    case FR_NO_FILESYSTEM:      return "sem sistema de arquivos";
+    case FR_MKFS_ABORTED:       return "formatacao abortada";
+    case FR_TIMEOUT:            return "timeout";
+    case FR_LOCKED:             return "arquivo travado";
+    case FR_NOT_ENOUGH_CORE:    return "sem memoria";
+    case FR_TOO_MANY_OPEN_FILES:return "muitos arquivos abertos";
+    case FR_INVALID_PARAMETER:  return "parametro invalido";
+    default:                    return "desconhecido";
+    }
+}
 
-    while (p < end) {
-        struct multiboot_tag *tag = (struct multiboot_tag *)p;
-        if (tag->type == MULTIBOOT_TAG_TYPE_END) break;
+static void print_result(const char *what, FRESULT fr) {
+    kputs(what);
+    kputs(" -> ");
+    kputs(fr_str(fr));
+    kputs("\r\n");
+}
 
-        if (tag->type == MULTIBOOT_TAG_TYPE_BASIC_MEMINFO) {
-            struct multiboot_tag_basic_meminfo *bi =
-                (struct multiboot_tag_basic_meminfo *)p;
-            tem_basic_meminfo = 1;
-            ram_kib = (uint64_t)bi->mem_lower + bi->mem_upper;
-        }
-        else if (tag->type == MULTIBOOT_TAG_TYPE_MMAP) {
-            struct multiboot_tag_mmap *mm = (struct multiboot_tag_mmap *)p;
-            uint8_t *e    = (uint8_t *)mm->entries;
-            uint8_t *eend = p + mm->size;
-            uint64_t mmap_ram_kib = 0;
-            while (e < eend) {
-                struct multiboot_mmap_entry *ent = (struct multiboot_mmap_entry *)e;
-                if (ent->type == 1) mmap_ram_kib += ent->len / 1024;
-                n_mmap++;
-                e += mm->entry_size;
-            }
-            if (mmap_ram_kib > ram_kib) ram_kib = mmap_ram_kib;
-        }
-        p += (tag->size + 7) & ~7u;
+/* ==================================================================== */
+/* Testes do FatFS                                                       */
+/* ==================================================================== */
+
+static FATFS fs;
+
+static void test_mount(void) {
+    kputs("\r\n[1] Montando o sistema de arquivos...\r\n");
+    FRESULT fr = f_mount(&fs, "", 1);
+    print_result("  f_mount", fr);
+
+    if (fr == FR_NO_FILESYSTEM) {
+        kputs("  Disco sem FAT\r\n");
     }
 
-    test_result(tem_basic_meminfo, "tag BASIC_MEMINFO presente");
-    test_result(n_mmap > 0, "tag MMAP presente com entradas");
-
-    serial_print("  Entradas no memory map: ");
-    serial_print_dec(n_mmap);
-    serial_putc('\n');
-
-    serial_print("  RAM total disponivel:   ");
-    serial_print_dec((uint32_t)(ram_kib / 1024));
-    serial_print(" MiB\n");
+    if (fr != FR_OK) {
+        kputs("  !! FatFS indisponivel. Testes abortados.\r\n");
+    }
 }
 
-/* ================================================================== */
-/*  TESTE 2: Paginacao                                                 */
-/* ================================================================== */
-static void check_paging(void) {
-    section("Paginacao");
+static void test_write_read(void) {
+    kputs("\r\n[2] Criando e escrevendo arquivo...\r\n");
 
-    uint32_t cr0 = paging_read_cr0();
-    test_result((cr0 & 0x80000000u) != 0, "CR0.PG (bit 31) ligado");
+    FIL f;
+    UINT bw, br;
+    FRESULT fr;
 
-    uint32_t cr3 = paging_read_cr3();
-    serial_print("  CR3 = ");
-    serial_print_hex32(cr3);
-    serial_putc('\n');
-    test_result(cr3 != 0, "CR3 configurado (nao-zero)");
+    fr = f_open(&f, "teste.txt", FA_CREATE_ALWAYS | FA_WRITE);
+    print_result("  f_open", fr);
+    if (fr != FR_OK) return;
 
-    volatile uint32_t *probe = (volatile uint32_t *)0x00100000u;
-    uint32_t saved = *probe;
-    *probe = 0xDEADBEEF;
-    test_result(*probe == 0xDEADBEEF, "identity map 0x100000 leitura/escrita");
-    *probe = saved;
+    const char *msg = "Ola, UpdateOS! Este texto foi gravado no disco FAT32.\r\n";
+    fr = f_write(&f, msg, (UINT)strlen(msg), &bw);
+    print_result("  f_write", fr);
+    kputs("  bytes escritos: "); kput_uint(bw); kputs("\r\n");
 
-    uint32_t virt = 0x003FF000u;
-    paging_map_page(virt, virt, 0x3);
-    volatile uint32_t *v = (volatile uint32_t *)virt;
-    *v = 0xCAFEBABE;
-    test_result(*v == 0xCAFEBABE, "paging_map_page + escrita/leitura");
+    f_close(&f);
 
-    paging_invalidate_tlb(virt);
-    test_result(1, "paging_invalidate_tlb acessivel");
+    kputs("\r\n[3] Lendo o arquivo de volta...\r\n");
+    char buf[128];
+
+    fr = f_open(&f, "teste.txt", FA_READ);
+    print_result("  f_open", fr);
+    if (fr != FR_OK) return;
+
+    fr = f_read(&f, buf, sizeof(buf) - 1, &br);
+    print_result("  f_read", fr);
+    buf[br] = '\0';
+    kputs("  bytes lidos: "); kput_uint(br); kputs("\r\n");
+    kputs("  conteudo: ");
+    kputs(buf);
+
+    f_close(&f);
 }
 
-/* ================================================================== */
-/*  TESTE 3: Heap                                                      */
-/* ================================================================== */
-static int g_heap_mapped = 0;
+static void test_mkdir_and_subfile(void) {
+    kputs("\r\n[4] Criando pasta e arquivo dentro dela...\r\n");
 
-static void check_heap(void) {
-    section("Heap");
+    FRESULT fr = f_mkdir("dados");
+    print_result("  f_mkdir(dados)", fr);
 
-    if (!g_heap_mapped) {
-        test_skip("heap: HEAP_START nao mapeado");
-        return;
+    FIL f;
+    UINT bw;
+    fr = f_open(&f, "dados/info.txt", FA_CREATE_ALWAYS | FA_WRITE);
+    print_result("  f_open(dados/info.txt)", fr);
+    if (fr == FR_OK) {
+        const char *txt = "Arquivo dentro da pasta /dados.\r\n";
+        f_write(&f, txt, (UINT)strlen(txt), &bw);
+        f_close(&f);
     }
+}
 
-    void *a = heap_alloc(64, 0);
-    test_result(a != NULL, "heap_alloc(64)");
-    if (a) {
-        memset(a, 0xAA, 64);
-        uint8_t *pa = (uint8_t *)a;
-        int ok = 1;
-        for (int i = 0; i < 64; i++) if (pa[i] != 0xAA) { ok = 0; break; }
-        test_result(ok, "escrita/leitura em 64 bytes");
-    }
+static void test_list_root(void) {
+    kputs("\r\n[5] Listando a raiz do disco...\r\n");
 
-    void *b = heap_alloc(13, 0);
-    test_result(b != NULL && (((uintptr_t)b & 3) == 0), "alinhamento de heap_alloc(13)");
+    DIR dir;
+    FILINFO fno;
+    FRESULT fr = f_opendir(&dir, "");
+    print_result("  f_opendir", fr);
+    if (fr != FR_OK) return;
 
-    void *ptrs[8];
     int count = 0;
-    for (int i = 0; i < 8; i++) {
-        ptrs[i] = heap_alloc(128, 0);
-        if (!ptrs[i]) break;
+    for (;;) {
+        fr = f_readdir(&dir, &fno);
+        if (fr != FR_OK || fno.fname[0] == 0) break;
+
         count++;
+        kputs("  ");
+        kputs((fno.fattrib & AM_DIR) ? "[DIR]  " : "[FILE] ");
+        kputs(fno.fname);
+        kputs("  (");
+        kput_uint(fno.fsize);
+        kputs(" bytes)\r\n");
     }
-    test_result(count > 0, "multiplas alocacoes consecutivas");
+    f_closedir(&dir);
 
-    if (count >= 2) {
-        heap_free(ptrs[0]);
-        void *c = heap_alloc(64, 0);
-        test_result(c != NULL, "reutilizacao de bloco liberado");
-        if (c) heap_free(c);
-    }
-
-    heap_free(NULL);
-    test_result(1, "heap_free(NULL) seguro");
-
-    for (int i = 0; i < count; i++) heap_free(ptrs[i]);
-    if (a) heap_free(a);
-    if (b) heap_free(b);
+    kputs("  total de entradas: "); kput_uint(count); kputs("\r\n");
 }
 
-/* ================================================================== */
-/*  TESTE 4: Biblioteca de memoria                                     */
-/* ================================================================== */
-static void check_memory_lib(void) {
-    section("Biblioteca de memoria");
+static void test_stat(void) {
+    kputs("\r\n[6] Consultando informacoes do arquivo...\r\n");
 
-    char sa[16], sb[16];
-    strcpy(sa, "UpdateOS");
-    memcpy(sb, sa, 9);
-    test_result(strcmp(sa, sb) == 0, "strcpy + memcpy + strcmp");
+    FILINFO fno;
+    FRESULT fr = f_stat("teste.txt", &fno);
+    print_result("  f_stat(teste.txt)", fr);
+    if (fr != FR_OK) return;
 
-    uint8_t buf[8];
-    memset(buf, 0x5A, 8);
-    int ok = 1;
-    for (int i = 0; i < 8; i++) if (buf[i] != 0x5A) { ok = 0; break; }
-    test_result(ok, "memset (stack)");
-
-    if (!g_heap_mapped) {
-        test_skip("malloc/calloc/realloc/free: heap nao inicializado");
-        return;
-    }
-
-    char *s = (char *)malloc(32);
-    test_result(s != NULL, "malloc(32)");
-    if (s) {
-        strcpy(s, "UpdateOS");
-        test_result(strcmp(s, "UpdateOS") == 0, "strcpy + strcmp (heap)");
-    }
-
-    uint8_t *z = (uint8_t *)calloc(1, 128);
-    int zeroed = 1;
-    if (z) for (int i = 0; i < 128; i++) if (z[i]) { zeroed = 0; break; }
-    test_result(z && zeroed, "calloc zera memoria");
-
-    if (s && z) {
-        memcpy(z, s, 9);
-        test_result(memcmp(z, s, 9) == 0, "memcpy + memcmp (heap)");
-    }
-
-    char *r = (char *)realloc(s, 64);
-    test_result(r != NULL, "realloc(ptr, 64)");
-    if (r) {
-        test_result(strcmp(r, "UpdateOS") == 0, "realloc preserva conteudo");
-        s = r;
-    }
-
-    void *n = realloc(NULL, 16);
-    test_result(n != NULL, "realloc(NULL, 16) == malloc(16)");
-    free(n);
-
-    free(NULL);
-    test_result(1, "free(NULL) seguro");
-
-    if (s) free(s);
-    if (z) free(z);
+    kputs("  tamanho: "); kput_uint(fno.fsize); kputs(" bytes\r\n");
+    kputs("  data   : ");
+    kput_uint(1980 + (fno.fdate >> 9)); kputc('-');
+    kput_2digits((fno.fdate >> 5) & 0x0F); kputc('-');
+    kput_2digits(fno.fdate & 0x1F); kputs("\r\n");
+    kputs("  hora   : ");
+    kput_2digits((fno.ftime >> 11) & 0x1F); kputc(':');
+    kput_2digits((fno.ftime >> 5) & 0x3F); kputc(':');
+    kput_2digits((fno.ftime & 0x1F) * 2); kputs("\r\n");
 }
 
-/* ================================================================== */
-/*  Sumario no SERIAL                                                  */
-/* ================================================================== */
-static void print_serial_summary(void) {
-    section("Resultado");
-    serial_print("  Testes: ");
-    serial_print_dec((uint32_t)(g_pass + g_fail + g_skip));
-    serial_print("   OK: ");
-    serial_print_dec((uint32_t)g_pass);
-    serial_print("   FAIL: ");
-    serial_print_dec((uint32_t)g_fail);
-    serial_print("   SKIP: ");
-    serial_print_dec((uint32_t)g_skip);
-    serial_print("\n\n");
-    if (g_fail == 0) serial_print("  *** TODOS OS TESTES EXECUTADOS PASSARAM ***\n");
-    else             serial_print("  *** ALGUNS TESTES FALHARAM ***\n");
-    serial_print("\n  Sistema pronto. Halt.\n");
+static void test_rename_delete(void) {
+    kputs("\r\n[7] Renomeando e removendo...\r\n");
+
+    FRESULT fr = f_rename("teste.txt", "renomeado.txt");
+    print_result("  f_rename", fr);
+
+    fr = f_unlink("renomeado.txt");
+    print_result("  f_unlink(renomeado.txt)", fr);
+
+    fr = f_unlink("dados/info.txt");
+    print_result("  f_unlink(dados/info.txt)", fr);
+
+    fr = f_unlink("dados");
+    print_result("  f_unlink(dados)", fr);
 }
 
-/* ================================================================== */
-/*  Sumario na TELA                                                    */
-/* ================================================================== */
+static void test_free_space(void) {
+    kputs("\r\n[8] Espaco livre no disco...\r\n");
 
-/* --- Fallback VGA texto --- */
-static void vga_print_dec(uint32_t v) {
-    char buf[11];
-    int i = 0;
-    if (v == 0) { vga_putc('0'); return; }
-    while (v > 0 && i < 10) { buf[i++] = '0' + (v % 10); v /= 10; }
-    while (i-- > 0) vga_putc(buf[i]);
+    DWORD fre_clust, fre_sect, tot_sect;
+    FATFS *fsp;
+    FRESULT fr = f_getfree("", &fre_clust, &fsp);
+    print_result("  f_getfree", fr);
+    if (fr != FR_OK) return;
+
+    tot_sect = (fsp->n_fatent - 2) * fsp->csize;
+    fre_sect = fre_clust * fsp->csize;
+
+    kputs("  total: "); kput_uint(tot_sect / 2048); kputs(" MB\r\n");
+    kputs("  livre: "); kput_uint(fre_sect / 2048); kputs(" MB\r\n");
 }
 
-static void show_vga_summary(void) {
-    vga_init();
-    vga_clear();
+/* ==================================================================== */
+/* Banner inicial                                                        */
+/* ==================================================================== */
 
-    vga_print("Testes=");
-    vga_print_dec((uint32_t)(g_pass + g_fail + g_skip));
-    vga_print(" FAIL=");
-    vga_print_dec((uint32_t)g_fail);
-    vga_print(" SKIP=");
-    vga_print_dec((uint32_t)g_skip);
-    vga_print(" OK=");
-    vga_print_dec((uint32_t)g_pass);
-    vga_putc('\n');
-    vga_print("Verifique o serial.log\n");
+static void banner(void) {
+    kputs("\r\n");
+    kputs("========================================\r\n");
+    kputs("  UpdateOS - Teste de FatFS\r\n");
+    kputs("========================================\r\n");
 }
 
-/* --- Barra horizontal auxiliar --- */
-static void draw_bar(uint32_t x0, uint32_t y0,
-                     uint32_t x1, uint32_t y1, uint32_t col)
-{
-    for (uint32_t y = y0; y < y1; y++) {
-        for (uint32_t x = x0; x < x1; x++) {
-            gfx_putpixel(x, y, col);
-        }
-    }
-}
+/* ==================================================================== */
+/* ENTRY POINT                                                           */
+/* ==================================================================== */
 
-/* --- Resumo no framebuffer: 3 barras horizontais --- */
-static void show_fb_summary(void) {
-    gfx_clear(0x101820);   /* fundo cinza-escuro */
-
-    /* Escala: 20 pixels por teste, com clamp pra não estourar a tela.
-     * Ajuste livre — é só visual.                                    */
-    const uint32_t SCALE = 20;
-    const uint32_t X0    = 10;
-
-    uint32_t w_ok   = (uint32_t)g_pass * SCALE;
-    uint32_t w_fail = (uint32_t)g_fail * SCALE;
-    uint32_t w_skip = (uint32_t)g_skip * SCALE;
-
-    /* Barra verde = OK */
-    if (w_ok > 0)
-        draw_bar(X0, 40, X0 + w_ok, 104, 0x00FF00);
-
-    /* Barra vermelha = FAIL */
-    if (w_fail > 0)
-        draw_bar(X0, 120, X0 + w_fail, 184, 0xFF0000);
-
-    /* Barra amarela = SKIP */
-    if (w_skip > 0)
-        draw_bar(X0, 200, X0 + w_skip, 264, 0xFFFF00);
-}
-
-static void show_screen_summary(void) {
-    /* Tenta framebuffer primeiro */
-    if (gfx_init()) {
-        show_fb_summary();
-        serial_print("[vga-fb] resumo desenhado no framebuffer\n");
-        serial_print("         verde=OK  vermelho=FAIL  amarelo=SKIP\n");
-        return;
-    }
-
-    /* Fallback: VGA texto */
-    serial_print("[vga-fb] framebuffer indisponivel — usando VGA texto\n");
-    show_vga_summary();
-}
-
-/* ================================================================== */
-/*  Entry point                                                        */
-/* ================================================================== */
-void kernel_main(uint32_t magic, void *mb_info) {
-    /* ------------------------------------------------------------------ */
-    /*  1) Serial primeiro — sobrevive a triple fault                      */
-    /* ------------------------------------------------------------------ */
+void kernel_main(void) {
     serial_init();
-    serial_print("\n\n");
-    serial_print("==========================================\n");
-    serial_print("   UpdateOS - Verificacao de Recursos\n");
-    serial_print("==========================================\n\n");
-    serial_print("[boot] magic   = ");
-    serial_print_hex32(magic);
-    serial_putc('\n');
-    serial_print("[boot] mb_info = ");
-    serial_print_hex32((uint32_t)mb_info);
-    serial_putc('\n');
+    /* vga_init(); -- descomente se o VGA precisar de setup explícito */
 
-    /* ------------------------------------------------------------------ */
-    /*  2) Salva ponteiro Multiboot2 no global                             */
-    /* ------------------------------------------------------------------ */
-    if (magic == MULTIBOOT2_BOOTLOADER_MAGIC && mb_info) {
-        g_multiboot_info = (struct multiboot_info *)mb_info;
+    banner();
+
+    /* --- 1. RTC --- */
+    rtc_init();
+    rtc_time_t now;
+    rtc_get_time(&now);
+    print_time("Hora atual: ", &now);
+
+    /* --- 2. ATA --- */
+    kputs("\r\nInicializando discos ATA...\r\n");
+    int n = ata_init();
+    kputs("Discos detectados: "); kput_uint((uint32_t)n); kputs("\r\n");
+
+    for (int i = 0; i < 4; i++) {
+        if (!ata_present(i)) continue;
+        kputs("  drive "); kputc('0' + i);
+        kputs(": "); kputs("setores=");
+        kput_uint(ata_get_sector_count(i));
+        kputs(" (~"); kput_uint(ata_get_sector_count(i) / 2048);
+        kputs(" MB)\r\n");
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  3) IDT/ISR/IRQ/PIC — ANTES de qualquer coisa que possa faultar     */
-    /* ------------------------------------------------------------------ */
-    gdt_init();
-	idt_init();
-	isr_install();
-    pic_remap();
-    serial_print("\n[init] IDT/ISR/IRQ/PIC prontos\n");
-
-    /* ------------------------------------------------------------------ */
-    /*  4) PMM + mapeamento do heap                                        */
-    /* ------------------------------------------------------------------ */
-    if (g_multiboot_info) {
-        pmm_init(g_multiboot_info);
-
-        serial_print("[init] PMM: total=");
-        serial_print_dec(pmm_total_frames());
-        serial_print(" livres=");
-        serial_print_dec(pmm_free_frames());
-        serial_print("\n");
-
-        uint32_t mapped = 0;
-        for (uint32_t addr = HEAP_START; addr < HEAP_START + HEAP_SIZE; addr += 0x1000) {
-            void *frame = pmm_alloc_frame();
-            if (!frame) break;
-            paging_map_page(addr, (uint32_t)frame, 0x3);
-            mapped++;
-        }
-        serial_print("[init] heap mapeado: ");
-        serial_print_dec(mapped * 4);
-        serial_print(" KiB\n");
-
-        heap_init();
-        g_heap_mapped = 1;
-    } else {
-        serial_print("[init] sem Multiboot2 — PMM/heap desativados\n");
+    if (n == 0) {
+        kputs("!! Nenhum disco ATA. Encerrando.\r\n");
+        for (;;) __asm__ volatile("cli; hlt");
     }
 
-    /* ------------------------------------------------------------------ */
-    /*  5) Bateria de testes (SO SERIAL)                                   */
-    /* ------------------------------------------------------------------ */
-    check_multiboot(magic, mb_info);
-    check_paging();
-    check_heap();
-    check_memory_lib();
-    print_serial_summary();
+    /* --- 3. FatFS --- */
+    test_mount();
+    test_write_read();
+    test_mkdir_and_subfile();
+    test_list_root();
+    test_stat();
+    test_free_space();
+    test_rename_delete();
+    test_list_root();   /* de novo, para confirmar que ficou vazio */
 
-    /* ------------------------------------------------------------------ */
-    /*  6) Resumo na TELA (framebuffer OU VGA texto)                       */
-    /* ------------------------------------------------------------------ */
-    show_screen_summary();
+    kputs("\r\n========================================\r\n");
+    kputs("  Testes concluidos.\r\n");
+    kputs("========================================\r\n\r\n");
 
-	page_fault_test();
+    /* Desmonta antes de encerrar */
+    f_mount(NULL, "", 0);
 
-    /* ------------------------------------------------------------------ */
-    /*  7) Halt                                                            */
-    /* ------------------------------------------------------------------ */
-    for (;;) __asm__ volatile ("hlt");
+    /* Loop final */
+    for (;;) __asm__ volatile("cli; hlt");
 }
