@@ -13,11 +13,20 @@ static page_entry_t *alloc_page_table(void) {
     return pt;
 }
 
-/* NÃO zera o boot_page_directory! Ele já foi montado em paging_init_early. */
+/* Fim do identity-map inicial.
+ * Precisa cobrir: kernel (~1.4 MiB) + heap (4..20 MiB) + folga.
+ * 32 MiB dá bastante margem e é barato: só 8 page tables. */
+#define IDENTITY_MAP_END 0x02000000u   /* 32 MiB */
+
 void paging_init(void) {
-    paging_load_directory((uint32_t *)boot_page_directory);
-    paging_enable();
+    /* Os primeiros 4 MiB já vêm mapeados pelo boot_page_table0 (asm).
+     * Mapeia identity da faixa [4 MiB, 32 MiB) usando o pool de PEs. */
+    for (uint32_t addr = 0x00400000u; addr < IDENTITY_MAP_END; addr += 0x1000u) {
+        paging_map_page(addr, addr, 0x3);   /* present | rw */
+    }
 }
+
+/* ---- O resto do arquivo fica IGUAL ---- */
 
 void paging_map_page(uint32_t virt, uint32_t phys, uint32_t flags) {
     uint32_t pd_index = virt >> 22;

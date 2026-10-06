@@ -1,0 +1,19 @@
+faça ser assim:
+
+crie um array com alterações, tipo:
+
+int chng_array[2048][2];
+int chng_pos = 0;
+
+put faz:
+
+chng_array[chng_pos][0] = x;
+chng_array[chng_pos][1] = y;
+chng_pos++;
+
+e o refresh faz:
+
+while (chng_pos > 0) {
+	memcpy...
+	chng_pos--;
+}

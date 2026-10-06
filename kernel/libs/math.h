@@ -68,13 +68,8 @@ static inline double fsign  (double x)                        { return x < 0.0 ?
 static inline double fsqr   (double x)                        { return x * x; }
 static inline double fcube  (double x)                        { return x * x * x; }
 
+#define fabs(x) __builtin_fabs(x)
 static inline int    feq    (double a, double b, double eps)  { return fabs(a - b) < eps; }
-
-/* fabs como macro: evita conflito com o builtin do GCC.
-   __builtin_fabs gera uma unica instrucao (fabs em x87 ou andps em SSE). */
-#ifndef fabs
-#  define fabs(x) __builtin_fabs(x)
-#endif
 
 /* Comparacoes / classificacao (usam builtins do compilador) */
 #define isnan(x)     __builtin_isnan(x)

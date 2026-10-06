@@ -9,6 +9,7 @@ extern bool kbd_has_event;
 extern bool kbd_initialized;
 
 typedef enum {
+	KS_NONE,
 	// key pressed
 	KS_PRESSED,
 	// key released

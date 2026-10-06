@@ -4,15 +4,23 @@
 #include <stdint.h>
 
 /* Inicializa o driver a partir da tag FRAMEBUFFER do Multiboot2.
- * Também mapeia o framebuffer no espaço virtual do kernel.
+ * Mapeia o framebuffer no espaço virtual do kernel e aloca o
+ * backbuffer em RAM.
  * Retorna 1 em sucesso, 0 caso contrário. */
 int gfx_init(void);
 
-/* Escreve um pixel. col = 0x00RRGGBB (byte alto ignorado).
- * Fora dos limites da tela, é ignorado silenciosamente. */
-void gfx_putpixel(uint32_t x, uint32_t y, uint32_t col);
+/* --- Framebuffer real ---------------------------------------------- */
 
-/* Preenche a tela inteira com a cor. */
-void gfx_clear(uint32_t col);
+extern uint8_t  *gfx_fb_addr;      /* ponteiro pro framebuffer */
+extern uint32_t  gfx_pitch;        /* bytes por linha */
+extern uint32_t  gfx_width;        /* largura em pixels */
+extern uint32_t  gfx_height;       /* altura em pixels */
+extern uint32_t  gfx_bpp;          /* bits por pixel (8/16/24/32) */
+
+/* --- Backbuffer 32bpp (0x00RRGGBB) --------------------------------- */
+
+extern uint32_t *gfx_bb_addr;      /* buffer: [y*gfx_width + x] */
+extern uint32_t  gfx_bb_pixels;    /* total de pixels */
+extern uint32_t  gfx_bb_bytes;     /* total de bytes */
 
 #endif /* VIDEO_H */

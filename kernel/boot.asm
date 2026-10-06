@@ -34,6 +34,8 @@ section .text
 global _start
 extern kernel_main
 extern paging_init_early
+extern vga_clear
+extern vga_print
 
 _start:
     ; Configurar stack temporária

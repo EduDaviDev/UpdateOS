@@ -1,6 +1,7 @@
 #include "idt.h"
 #include "pic.h"
 #include "gdt.h"
+#include "../libs/string.h"
 
 static struct idt_entry idt[IDT_ENTRIES];
 static struct idt_ptr   idtp;

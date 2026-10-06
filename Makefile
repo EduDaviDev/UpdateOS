@@ -18,9 +18,9 @@ MKFSFAT  = mkfs.vfat
 ASMFLAGS = -f elf32
 CFLAGS   = -m32 -ffreestanding -nostdlib -fno-builtin \
            -fno-stack-protector -fno-pic -Wall -Wextra \
-           -Ikernel -Ikernel/drivers -g
+           -Ikernel -Ikernel/drivers -g -O2
 CXXFLAGS = $(CFLAGS) -fno-exceptions -fno-rtti
-LDFLAGS  = -m elf_i386 -T kernel/linker.ld
+LDFLAGS  = -m elf_i386 -T kernel/linker.ld -O2
 
 # ---- Diretórios ----
 KERNEL_DIR   = kernel
@@ -73,7 +73,10 @@ ALL_DEPENDS  := $(C_DEPENDS) $(CXX_DEPENDS)
 
 .PHONY: all clean run iso kernel debug disk_format disk_update disk_delete
 
-all: $(ISO_FILE) disk_update
+all: cls $(ISO_FILE) disk_update run disk_update
+
+cls:
+	clear
 
 # ---- Linkagem do kernel ----
 kernel: $(KERNEL_ELF)
@@ -164,17 +167,24 @@ disk_delete:
 	@rm -f $(DISK_IMG)
 	@echo "==> Feito."
 
+
+QEMU_EXTRA_FLAGS :=
 # ---- Executar no QEMU ----
 run: $(ISO_FILE)
 	@mkdir -p $(LOG_DIR)
 	@echo "==> Log do QEMU sera salvo em $(QEMU_LOG)"
 	$(QEMU) -cdrom $(ISO_FILE) -boot d \
+		-display gtk \
 		-drive file=$(DISK_IMG),format=raw,if=ide,index=0 \
 		-rtc base=localtime \
 		-no-reboot -no-shutdown \
+		-vga std \
+		-cpu max \
 		-d int,cpu_reset \
 		-D $(QEMU_LOG) \
-		-serial file:$(LOG_DIR)/serial.log
+		-serial file:$(LOG_DIR)/serial.log \
+		-enable-kvm \
+		$(QEMU_EXTRA_FLAGS)
 
 debug: run
 	@echo ""

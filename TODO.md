@@ -8,6 +8,7 @@
   - [x] IRQs (Interrupt Requests)
   - [x] PIC (Programmable Interrupt Controller)
 - [x] Add Paging
+- [ ] Add User Space/Mode
 - [ ] Add UEX (Update Executable)
 
 ### Drivers
@@ -15,4 +16,19 @@
 - [ ] Add Mouse
 - [ ] Add Timer
 - [x] Add Graphics
-- [ ] Add Sound (PC Speaker)
+- [ ] Add Sound
+  - [ ] PC Speaker
+  - [ ] Sound Blaster
+  - [ ] Intel HDA
+- [ ] Add Disks
+  - [ ] ATA
+    - [ ] ATAPI
+    - [ ] ATAPIO
+  -[ ] FSes
+    - [x] FAT(12/16/32/Exfat)
+    - [ ] UpFS
+    - [ ] NTFS
+
+### Kernel
+- [ ] Add Processes
+- [ ] Add Desktop Manager Support

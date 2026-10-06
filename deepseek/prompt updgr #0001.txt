@@ -1,0 +1,5 @@
+adiciona as flags no print:
+
+	0x01: inverter horizontalmente
+	0x02: inverter verticalmente
+	0x03: inverter horizontalmente e verticalmente
