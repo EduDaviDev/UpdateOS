@@ -1,0 +1,117 @@
+eu refiz TODA a estrutura de arquivos no meu UpOS, crie o makefile com as regras:
+
+.
+├── assets
+│   ├── Apps
+│   │   ├── Binaries
+│   │   └── Codes
+│   ├── Disks
+│   │   ├── Data
+│   │   │   └── 0
+│   │   ├── Disks.json
+│   │   └── Images
+│   ├── Fonts
+│   │   ├── Bases
+│   │   └── Out
+│   │       ├── Bin
+│   │       └── Headers
+│   └── Tools
+│       ├── Binaries
+│       └── Codes
+├── build
+├── kernel
+│   ├── boot.asm
+│   ├── cpu
+│   │   ├── gdt.c
+│   │   ├── gdt.h
+│   │   ├── heap.c
+│   │   ├── heap.h
+│   │   ├── idt.c
+│   │   ├── idt.h
+│   │   ├── interrupt.asm
+│   │   ├── irq.c
+│   │   ├── irq.h
+│   │   ├── isr.c
+│   │   ├── isr.h
+│   │   ├── page_fault.c
+│   │   ├── page_fault.h
+│   │   ├── paging_asm.asm
+│   │   ├── paging.c
+│   │   ├── paging.h
+│   │   ├── pic.c
+│   │   ├── pic.h
+│   │   ├── pmm.c
+│   │   ├── pmm.h
+│   │   ├── tss.c
+│   │   ├── tss.h
+│   │   ├── usermode.asm
+│   │   └── usermode.h
+│   ├── drivers
+│   │   ├── atapio.c
+│   │   ├── atapio.h
+│   │   ├── fatfs
+│   │   │   ├── diskio.c
+│   │   │   ├── diskio.h
+│   │   │   ├── ff.c
+│   │   │   ├── ffconf.h
+│   │   │   ├── ff.h
+│   │   │   ├── ffsystem.c
+│   │   │   └── ffunicode.c
+│   │   ├── keyboard.c
+│   │   ├── keyboard.h
+│   │   ├── keycodes.h
+│   │   ├── rtc.c
+│   │   ├── rtc.h
+│   │   ├── serial.c
+│   │   ├── serial.h
+│   │   ├── vga.c
+│   │   ├── vga.h
+│   │   ├── video.c
+│   │   └── video.h
+│   ├── fonts
+│   │   ├── all-fonts.h
+│   │   ├── font10x20.h
+│   │   ├── font16x16.h
+│   │   ├── font16x32.h
+│   │   ├── font8x16.h
+│   │   ├── font8x8.h
+│   │   └── udf.h
+│   ├── grub.cfg
+│   ├── io.h
+│   ├── kernel.c
+│   ├── libs
+│   │   ├── div64.c
+│   │   ├── div64.h
+│   │   ├── math.c
+│   │   ├── math.h
+│   │   ├── memory.c
+│   │   ├── memory.h
+│   │   ├── string.c
+│   │   └── string.h
+│   ├── linker.ld
+│   ├── mboot.h
+│   ├── updgr.c
+│   ├── updgr.h
+│   └── user
+│       ├── syscall.c
+│       ├── syscall.h
+│       ├── uex.c
+│       └── uex.h
+├── Makefile
+├── README.md
+└── TODO.md
+
+
+make all / make / make menu: compila /assets/Tools/Codes/MakeGUI.cpp -> /assets/Tools/Binaries/MakeGUI
+
+make clean: remove todos os arquivos compilados
+make kernel: compila o kernel
+make iso: cria o ISO
+make system: kernel iso
+make run: executa o OS no QEMU com KVM e logs em logs/serial.log e logs/qemu.log
+make help: mostra a lista de comandos
+make version: mostra:
+--- Text ---
+UpdateOS V1.0
+Coded by Eduardo Davi in ​​Brazil (with an 'S', not a 'Z')
+--- End Text ---
