@@ -485,10 +485,8 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
             return
 
         subprocess.run([
-            "make", "app",
-            f"APP_FILE={selected_app}",
-            f"APP_CODES={APPS_CODES_DIR}",
-            f"APP_OUT_DIR={APPS_BIN_DIR}",
+            f"{TOOLS_CODES_DIR}/makeapps.sh",
+            selected_app
         ], cwd=BASE_DIR)
 
     def f_build_all_apps(self):
@@ -497,10 +495,8 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
         for app in APPS_CODES_DIR.iterdir():
             if app.is_dir() or app.suffix.lower() in APP_EXTENSIONS:
                 subprocess.run([
-                    "make", "app",
-                    f"APP_FILE={app.name}",
-                    f"APP_CODES={APPS_CODES_DIR}",
-                    f"APP_OUT_DIR={APPS_BIN_DIR}",
+                    f"{TOOLS_CODES_DIR}/makeapps.sh",
+                    app.name
                 ], cwd=BASE_DIR)
 
     # ============================================================
