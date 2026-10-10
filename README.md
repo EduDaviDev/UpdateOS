@@ -17,3 +17,12 @@ This system was designed to beat Windows in stability, speed, resource usage, et
 - NASM
 - QEMU
 - Make
+
+Recommended run:
+
+```bash
+# on your git clone folder:
+ln -sfn . ~/UpOS
+cd ~/UpOS
+make
+```

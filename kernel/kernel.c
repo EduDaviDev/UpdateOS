@@ -66,7 +66,7 @@ void kernel_main(uint32_t magic, void *mb_info) {
 	    __asm__ volatile("hlt");
 
 	    if (velocity < max_velocity) velocity += 2;
-		else if (velocity >= max_velocity) {gfx_print(0,0, int_to_str(1), 0x00FFFFFF); while(1)}
+		else if (velocity >= max_velocity) {gfx_print(0,0, int_to_str(1), 0x00FFFFFF); while(1);}
 
 		y += velocity;
 		

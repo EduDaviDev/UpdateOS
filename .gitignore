@@ -58,3 +58,7 @@ dkms.conf
 
 # build directory
 build/
+
+# python
+.venv/
+__pycache__/
