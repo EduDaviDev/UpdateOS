@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+/* Flags de página (bit 0..2), usadas em paging_map_page / paging_map_page_in */
+#define PG_PRESENT 0x01
+#define PG_WRITE   0x02
+#define PG_USER    0x04
+
 // Estrutura de uma entrada de diretório/tabela de páginas
 typedef struct {
     uint32_t present    : 1;

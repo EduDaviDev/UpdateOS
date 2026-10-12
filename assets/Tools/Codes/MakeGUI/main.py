@@ -220,8 +220,7 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
 	# ============================================================
 
 	def f_compile_run(self):
-		self.f_compile_only()
-		self.f_run_only()
+		subprocess.run(["make", "system", "run"], cwd=BASE_DIR)
 
 	def f_compile_only(self):
 		subprocess.run(["make", "system"], cwd=BASE_DIR)
@@ -638,8 +637,9 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
 			return
 
 		# 6. Monta caminhos
-		src = APPS_BIN_DIR / f"{selected_app}.elf"
-		dst = DISKS_DATA_DIR / disk["dir"] / f"{selected_app}.elf"
+		app_filename = Path(selected_app).stem + ".elf"
+		src = APPS_BIN_DIR / app_filename
+		dst = DISKS_DATA_DIR / disk["dir"] / app_filename
 
 		# 7. Verifica origem
 		if not src.exists():
@@ -667,7 +667,7 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
 
 		QMessageBox.information(
 			self, "Done",
-			f"'{selected_app}.elf' copied to disk '{disk['name']}'.\n"
+			f"'{app_filename}' copied to disk '{disk['name']}'.\n"
 		)
 
 	# ============================================================

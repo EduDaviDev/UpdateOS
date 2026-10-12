@@ -218,9 +218,9 @@ void kernel_main(uint32_t magic, struct multiboot_info *mb)
     serial_print("[boot] disco montado\n");
 
     FIL fil;
-    fr = f_open(&fil, "0:/helloworld.elf", FA_READ);
+    fr = f_open(&fil, "0:/mainprog.elf", FA_READ);
     if (fr != FR_OK) {
-        serial_print("[boot] f_open('0:/helloworld.elf') falhou (");
+        serial_print("[boot] f_open('0:/mainprog.elf') falhou (");
         serial_print_dec(fr);
         serial_print(")\n");
         for (;;) __asm__ volatile ("cli; hlt");

@@ -26,3 +26,5 @@ ln -sfn . ~/UpOS
 cd ~/UpOS
 make
 ```
+
+this system automatically runs the app `mainprog.elf` on startup.

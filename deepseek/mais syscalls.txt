@@ -1,0 +1,97 @@
+0x00 sys_exit:
+	d: Sai do programa
+	p1: errcode
+
+0x01 sys_print:
+	d: Imprime uma string
+	p1: string
+	p2: tamanho da string
+
+0x02 sys_run:
+	d: Executa um programa (prgCall)
+	p1: nome do programa
+	p2-p...: argumentos
+	d: Retorna o código de retorno do programa em eax
+
+0x03 sys_fs:
+	d: Manipula o sistema de arquivos
+	p1: tipo de operação
+		0x01: fs_open
+		0x02: fs_close
+		0x03: fs_read
+		0x04: fs_write
+		0x05: fs_seek
+		0x06: fs_tell
+		0x07: fs_size
+		0x08: fs_rename
+		0x09: fs_remove
+		0x0A: fs_mkdir
+		0x0B: fs_rmdir
+		0x0C: fs_chdir
+		0x0D: fs_getcwd
+		0x0E: fs_getstat
+		0x0F: fs_chmod
+		0x10: fs_stat
+	p2: argumentos
+
+0x04 sys_gfx:
+	d: Manipula o sistema de gráficos
+	p1: tipo de operação
+		0x01: gfx_get:
+			p2: d: retorna em eax
+				0x01: largura
+				0x02: altura
+				0x03: bpp
+				0x04: gfx_text_width, p2: string;
+				0x05: gfx_text_height,
+				0x06: gfx_current_font
+		
+		0x02: gfx_clear, p2: cor
+		0x03: gfx_putpixel, p2: x; p3: y; p4: cor
+		0x04: gfx_getpixel, p2: x; p3: y; d: retorna em eax
+
+		0x05: gfx_draw_line, p2: x0; p3: y0; p4: x1; p5: y1; p6: cor
+		0x06: gfx_draw_hline, p2: x; p3: y; p4: w; p5: cores
+		0x07: gfx_draw_vline, p2: x; p3: y; p4: h; p5: cores
+
+		0x08: gfx_draw_rect, p2: x; p3: y; p4: w; p5: h; p6: cor
+		0x09: gfx_fill_rect, p2: x; p3: y; p4: w; p5: h; p6: cor
+
+		0x0A: gfx_fill_rect_grad_v, p2: x; p3: y; p4: w; p5: h; p6: c0; p7: c1
+		0x0B: gfx_fill_rect_grad_h, p2: x; p3: y; p4: w; p5: h; p6: c0; p7: c1
+
+		0x0C: gfx_draw_circle, p2: x; p3: y; p4: radius; p5: cor
+		0x0D: gfx_fill_circle, p2: x; p3: y; p4: radius; p5: cor
+
+		0x0E: gfx_draw_ellipse, p2: x; p3: y; p4: width; p5: height; p6: cor
+		0x0F: gfx_fill_ellipse, p2: x; p3: y; p4: width; p5: height; p6: cor
+
+		0x10: gfx_draw_triangle, p2: x0; p3: y0; p4: x1; p5: y1; p6: x2; p7: y2; p8: cor
+		0x11: gfx_fill_triangle, p2: x0; p3: y0; p4: x1; p5: y1; p6: x2; p7: y2; p8: cor
+
+		0x12: gfx_draw_polygon, p2: x0; p3: y0; p4: x1; p5: y1; p6: x2; p7: y2; p8: cor
+		0x13: gfx_fill_polygon, p2: x0; p3: y0; p4: x1; p5: y1; p6: x2; p7: y2; p8: cor
+
+		0x14: gfx_blit, p2: x; p3: y; p4: w; p5: h; p6: dx; p7: dy
+		0x15: gfx_blit_colorkey, p2: x; p3: y; p4: w; p5: h; p6: dx; p7: dy; p8: cor
+		0x16: gfx_blit_alpha, p2: x; p3: y; p4: w; p5: h; p6: dx; p7: dy; p8: alpha
+
+		0x17: gfx_print, p2: x; p3: y; p4: string; p5: tamanho da string
+		0x18: gfx_print_char, p2: x; p3: y; p4: char; p5: cor
+		0x19: gfx_setfont, p2: fonte
+		0x1A: gfx_setfpack, p2: fpack; p3: fonte
+
+0x05 sys_power:
+	d: Manipula o sistema de energia
+	p1: tipo de operação
+		0x01: shutdown
+		0x02: reboot
+		0x03: poweroff
+
+0x06 sys_mem:
+	d: Manipula o sistema de memória
+	p1: tipo de operação
+		0x01: malloc
+		0x02: free
+		0x03: calloc
+		0x04: realloc
