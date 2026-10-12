@@ -95,8 +95,7 @@ void pmm_init(struct multiboot_info *mb_info) {
         p += (tag->size + 7) & ~7u;
     }
 
-    /* 4) reserva tudo que é "território do kernel/boot" */
-    mark_used(0x00000000, 0x00400000);   /* primeiros 4 MiB: BIOS, VGA, kernel, page tables */
+        mark_used(0x00000000, 0x01400000);   /* [0, 20 MiB): kernel + heap */
 
     /* 5) reserva explicitamente o intervalo do kernel (por segurança) */
     mark_used((uint64_t)(uintptr_t)&_kernel_start,

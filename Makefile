@@ -166,7 +166,7 @@ run:
 	else \
 		IFS=',' read -ra names <<< "$$discs"; \
 		for name in "$${names[@]}"; do \
-			name="$${name// /}"; \
+			name="$$(echo "$$name" | sed 's/^[[:space:]]*//; s/[[:space:]]*$$//')"; \
 			[ -z "$$name" ] && continue; \
 			img="$$imgs_dir/$$name.img"; \
 			if [ ! -f "$$img" ]; then \

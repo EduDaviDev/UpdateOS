@@ -189,6 +189,7 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
 		self.btn_remove_disk.clicked.connect(self.f_remove_disk)
 		self.btn_remove_all_disks.clicked.connect(self.f_remove_all_disks)
 		self.btn_save_disk.clicked.connect(self.f_save_disk)
+		self.btn_format_disk.clicked.connect(self.f_format_disk)
 
 		# --- Apps ---
 		self.btn_build_app.clicked.connect(self.f_build_app)
@@ -481,7 +482,7 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
 		if not MKDISK_SH.exists():
 			QMessageBox.critical(
 				self, "Error",
-				f"mkdisk.sh não encontrado:\n{MKDISK_SH}"
+				f"mkdisk.sh not found:\n{MKDISK_SH}"
 			)
 			return False
 
@@ -501,10 +502,26 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
 		except subprocess.CalledProcessError as e:
 			QMessageBox.critical(
 				self, "Error",
-				f"mkdisk.sh falhou (código {e.returncode}).\n"
-				f"Veja o terminal pra detalhes."
+				f"mkdisk.sh failed (error code {e.returncode}).\n"
+				f"Verify the terminal for details."
 			)
 			return False
+
+	def f_format_disk(self):
+		disk = self.find_disk_by_name(selected_disk) if selected_disk else None
+		if disk is None:
+			QMessageBox.warning(self, "Warning", "No disk selected to format.")
+			return
+
+		Path(disk["dir"]).rmdir()
+		Path(disk["dir"]).mkdir(parents=True, exist_ok=True)
+
+		self._run_mkdisk(disk)
+
+		QMessageBox.information(
+			self, "Done",
+			f"Disk '{disk['name']}' formatted sucessfully."
+		)
 
 	def f_build_disk_img(self):
 		disk = self.find_disk_by_name(selected_disk) if selected_disk else None
@@ -553,7 +570,7 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
 		if not MAKEAPPS_SH.exists():
 			QMessageBox.critical(
 				self, "Error",
-				f"makeapps.sh não encontrado:\n{MAKEAPPS_SH}"
+				f"makeapps.sh not found:\n{MAKEAPPS_SH}"
 			)
 			return
 
@@ -648,14 +665,9 @@ class JanelaPrincipal(QMainWindow, Ui_MainWindow):
 
 		print(f"[copy] {src}  →  {dst}")
 
-		# 10. Reconstrói a imagem do disco com o ELF dentro
-		if not self._run_mkdisk(disk):
-			return
-
 		QMessageBox.information(
 			self, "Done",
 			f"'{selected_app}.elf' copied to disk '{disk['name']}'.\n"
-			f"Disk image rebuilt."
 		)
 
 	# ============================================================

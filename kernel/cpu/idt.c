@@ -24,6 +24,8 @@ extern void irq4(void);  extern void irq5(void);  extern void irq6(void);  exter
 extern void irq8(void);  extern void irq9(void);  extern void irq10(void); extern void irq11(void);
 extern void irq12(void); extern void irq13(void); extern void irq14(void); extern void irq15(void);
 
+extern void isr128(void);
+
 void idt_set_gate(uint8_t num, uint32_t base, uint16_t sel, uint8_t flags) {
     idt[num].base_lo = base & 0xFFFF;
     idt[num].base_hi = (base >> 16) & 0xFFFF;
@@ -92,6 +94,9 @@ void idt_init(void) {
     idt_set_gate(45, (uint32_t)irq13, GDT_KERNEL_CODE, 0x8E);
     idt_set_gate(46, (uint32_t)irq14, GDT_KERNEL_CODE, 0x8E);
     idt_set_gate(47, (uint32_t)irq15, GDT_KERNEL_CODE, 0x8E);
+
+    /* 0x80 — syscall (DPL=3 pra user chamar; 0xEE = present, DPL 3, int gate 32) */
+    idt_set_gate(0x80, (uint32_t)isr128, GDT_KERNEL_CODE, 0xEE);
 
     idt_flush((uint32_t)&idtp);
 }

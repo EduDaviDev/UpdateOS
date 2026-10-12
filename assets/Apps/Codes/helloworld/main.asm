@@ -12,4 +12,4 @@ _start:
 
 section .data
 msg:
-	db "Hello, world!", 0x0a, 0x00
+	db "Oi, eu troquei o código, se isso alterou, é REAL!", 0x0a, 0x00

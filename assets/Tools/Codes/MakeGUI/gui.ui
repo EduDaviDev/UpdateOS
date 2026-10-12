@@ -392,18 +392,40 @@
     <widget class="QPushButton" name="btn_remove_all_disks">
      <property name="geometry">
       <rect>
-       <x>320</x>
+       <x>380</x>
        <y>200</y>
-       <width>121</width>
+       <width>61</width>
        <height>31</height>
       </rect>
      </property>
      <property name="text">
-      <string>Delete All</string>
+      <string/>
      </property>
      <property name="icon">
       <iconset theme="edit-clear">
        <normaloff>.</normaloff>.</iconset>
+     </property>
+     <property name="iconSize">
+      <size>
+       <width>32</width>
+       <height>32</height>
+      </size>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="btn_format_disk">
+     <property name="geometry">
+      <rect>
+       <x>320</x>
+       <y>200</y>
+       <width>61</width>
+       <height>31</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string/>
+     </property>
+     <property name="icon">
+      <iconset theme="media-playlist-repeat"/>
      </property>
      <property name="iconSize">
       <size>

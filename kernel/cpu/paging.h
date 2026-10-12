@@ -50,4 +50,8 @@ uint32_t paging_kernel_directory(void);
 /* Libera todos os frames mapeados em modo user do PD e depois o próprio PD */
 void     paging_destroy_directory(uint32_t pd_phys);
 
+/* Mapeia uma página num PD arbitrário (endereço físico do PD). */
+void paging_map_page_in(uint32_t pd_phys, uint32_t virt,
+                        uint32_t phys, uint32_t flags);
+
 #endif

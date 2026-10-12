@@ -93,11 +93,12 @@ uint32_t paging_create_address_space(void) {
      *    Simples: copia TODAS as entradas que já existem no
      *    diretório atual. O loader vai sobrescrever as que
      *    pertencem ao user. */
-    for (int i = 0; i < 1024; i++) {
+    /* Copia só as PDEs de kernel (identity map do kernel).
+     * IDENTITY_MAP_END = 0x02000000 → 8 PDEs × 4 MiB = 32 MiB.
+     * As demais ficam zeradas — o ELF loader preenche. */
+    #define KERNEL_PDE_COUNT  (IDENTITY_MAP_END >> 22)   /* = 8 */
+    for (uint32_t i = 0; i < KERNEL_PDE_COUNT; i++)
         new_pd[i] = boot_page_directory[i];
-        /* Marca como "não pertence ao user" — o loader sobrescreve
-         * as entradas relevantes com user=1. */
-    }
 
     return pd_phys;
 }
@@ -118,7 +119,7 @@ void paging_destroy_directory(uint32_t pd_phys) {
     /* Itera todas as PD entries. Aquelas que apontam pra
      * page tables user (i.e., fora do pool de kernel e com
      * user=1) precisam ser destruídas. */
-    for (int i = 0; i < 1024; i++) {
+    for (uint32_t i = KERNEL_PDE_COUNT; i < 1024; i++) {
         if (!pd[i].present) continue;
         if (!pd[i].user) continue;    /* entrada de kernel: não mexe */
 
@@ -138,4 +139,36 @@ void paging_destroy_directory(uint32_t pd_phys) {
 
     /* Libera o PD */
     pmm_free_frame((void *)(uintptr_t)pd_phys);
+}
+
+/* Mapeia uma página num PD arbitrário. Aloca PT do PMM (não do pool). */
+void paging_map_page_in(uint32_t pd_phys, uint32_t virt,
+                        uint32_t phys, uint32_t flags)
+{
+    page_entry_t *pd = (page_entry_t *)pd_phys;
+    uint32_t pd_idx = virt >> 22;
+    uint32_t pt_idx = (virt >> 12) & 0x3FF;
+
+    page_entry_t *pde = &pd[pd_idx];
+
+    if (!pde->present) {
+        void *pt_phys = pmm_alloc_frame();
+        if (!pt_phys) return;
+        memset(pt_phys, 0, 4096);
+
+        pde->frame   = ((uint32_t)pt_phys) >> 12;
+        pde->present = 1;
+        pde->rw      = 1;
+        pde->user    = (flags & 4) ? 1 : 0;
+    } else {
+        if (flags & 4) pde->user = 1;
+    }
+
+    page_entry_t *pt = (page_entry_t *)(pde->frame << 12);
+    pt[pt_idx].frame   = phys >> 12;
+    pt[pt_idx].present = (flags & 1) ? 1 : 0;
+    pt[pt_idx].rw      = (flags & 2) ? 1 : 0;
+    pt[pt_idx].user    = (flags & 4) ? 1 : 0;
+
+    paging_invalidate_tlb(virt);
 }

@@ -23,7 +23,9 @@
 #include "cpu/heap.h"
 #include "cpu/upm.h"
 #include "drivers/serial.h"
+#include "drivers/atapio.h"
 #include "mboot.h"
+#include "drivers/fatfs/ff.h"
 
 /* ============================================================
  *  Stack de kernel dedicada do "processo 0" (o kernel em si).
@@ -34,20 +36,9 @@
 
 static uint8_t g_kernel_stack[16384] __attribute__((aligned(16)));
 
+struct multiboot_info *g_multiboot_info = NULL;
+
 #define KERNEL_STACK_TOP ((uint32_t)(g_kernel_stack + sizeof(g_kernel_stack)))
-
-/* ============================================================
- *  ELF embutido
- *
- *  Por enquanto, hardcoded. Depois, quando você tiver um FS,
- *  vai vir de lá (initrd, FAT32, etc.).
- *
- *  COMO GERAR: use `xxd -i assets/Apps/Binaries/helloworld.elf`
- *  e cole o array abaixo, ou inclua um .S que faz `.incbin`.
- * ============================================================ */
-
-extern const uint8_t  helloworld_elf[];
-extern const uint32_t helloworld_elf_size;
 
 /* ============================================================
  *  Hook chamado quando o último processo sai
@@ -78,16 +69,22 @@ static void on_app_exit(process_t *p, int32_t code)
  *  Boot
  * ============================================================ */
 
-void kernel_main(struct multiboot_info *mb)
+void kernel_main(uint32_t magic, struct multiboot_info *mb)
 {
-    /* ------------------------------------------------------------
-     *  1. Debug
-     * ------------------------------------------------------------ */
     serial_init();
     serial_print("\n");
     serial_print("========================================\n");
     serial_print("             UpOS - boot                \n");
     serial_print("========================================\n");
+
+    /* Valida o magic do Multiboot2 */
+    if (magic != 0x36D76289) {
+        serial_print("[boot] ERRO: magic MB2 inválido: ");
+        serial_print_hex32(magic);
+        serial_print("\n");
+        for (;;) __asm__ volatile ("cli; hlt");
+    }
+    serial_print("[boot] magic MB2 OK\n");
 
     /* ------------------------------------------------------------
      *  2. GDT — precisa ser a PRIMEIRA coisa
@@ -162,6 +159,44 @@ void kernel_main(struct multiboot_info *mb)
         serial_print(" (esperado: 0x00000028)\n");
     }
 
+    serial_print("[boot] testando ATA...\n");
+
+    int ndrives = ata_init();
+    serial_print("[boot] drives detectados: ");
+    serial_print_dec((uint32_t)ndrives);
+    serial_print("\n");
+
+    if (ndrives <= 0) {
+        serial_print("[boot] nenhum drive ATA — problema no QEMU ou no driver\n");
+    } else {
+        for (int d = 0; d < 4; d++) {
+            if (!ata_present(d)) continue;
+            serial_print("[boot]   drive ");
+            serial_print_dec((uint32_t)d);
+            serial_print(": ");
+            serial_print_dec(ata_get_sector_count(d));
+            serial_print(" setores\n");
+        }
+
+        /* Tenta ler o MBR do drive 0 (primary master) */
+        if (ata_present(0)) {
+            uint8_t mbr[512];
+            int r = ata_read_sectors(0, 0, 1, mbr);
+            serial_print("[boot] read setor 0 do drive 0: ");
+            serial_print_dec((uint32_t)r);
+            serial_print("\n");
+
+            if (r == 0) {
+                serial_print("[boot] MBR[0..7]: ");
+                for (int i = 0; i < 8; i++) {
+                    serial_print_hex32(mbr[i]);
+                    serial_print(" ");
+                }
+                serial_print("\n");
+            }
+        }
+    }
+
     /* ------------------------------------------------------------
      *  8. UPM
      * ------------------------------------------------------------ */
@@ -170,30 +205,63 @@ void kernel_main(struct multiboot_info *mb)
     upm_set_exit_hook(on_app_exit);
 
     /* ------------------------------------------------------------
-     *  9. Cria o primeiro processo
+     *  9. Monta o disco e carrega o ELF
      * ------------------------------------------------------------ */
-    serial_print("[boot] upm_create(\"helloworld\", PROC_PROGRAM)\n");
-    process_t *p = upm_create("helloworld",
-                              PROC_PROGRAM,
-                              helloworld_elf,
-                              helloworld_elf_size);
+    static FATFS fs;
+    FRESULT fr = f_mount(&fs, "0:", 1);
+    if (fr != FR_OK) {
+        serial_print("[boot] f_mount falhou (");
+        serial_print_dec(fr);
+        serial_print(")\n");
+        for (;;) __asm__ volatile ("cli; hlt");
+    }
+    serial_print("[boot] disco montado\n");
+
+    FIL fil;
+    fr = f_open(&fil, "0:/helloworld.elf", FA_READ);
+    if (fr != FR_OK) {
+        serial_print("[boot] f_open('0:/helloworld.elf') falhou (");
+        serial_print_dec(fr);
+        serial_print(")\n");
+        for (;;) __asm__ volatile ("cli; hlt");
+    }
+
+    uint32_t elf_size = f_size(&fil);
+    uint8_t *elf_buf  = (uint8_t *)heap_alloc(elf_size, 4);
+    if (!elf_buf) {
+        serial_print("[boot] heap_alloc pro ELF falhou\n");
+        for (;;) __asm__ volatile ("cli; hlt");
+    }
+
+    UINT br = 0;
+    fr = f_read(&fil, elf_buf, elf_size, &br);
+    f_close(&fil);
+
+    if (fr != FR_OK || br != elf_size) {
+        serial_print("[boot] f_read incompleto\n");
+        for (;;) __asm__ volatile ("cli; hlt");
+    }
+
+    serial_print("[boot] ELF lido: ");
+    serial_print_dec(elf_size);
+    serial_print(" bytes\n");
+
+    /* ------------------------------------------------------------
+     *  10. Cria processo e cai em ring 3
+     * ------------------------------------------------------------ */
+    process_t *p = upm_create("helloworld", PROC_PROGRAM, elf_buf, elf_size);
+    heap_free(elf_buf);
+
     if (!p) {
-        serial_print("[boot] ERRO: falha ao criar processo\n");
+        serial_print("[boot] upm_create falhou\n");
         for (;;) __asm__ volatile ("cli; hlt");
     }
 
     upm_list();
 
-    /* ------------------------------------------------------------
-     *  10. Cai em ring 3
-     *      upm_run() configura CR3, tss.esp0 e faz iret.
-     *      Quando o app fizer exit, o handler de syscall chama
-     *      upm_exit() → on_app_exit() → halt.
-     * ------------------------------------------------------------ */
     serial_print("[boot] upm_run() — entrando em ring 3\n\n");
     upm_run(p);
 
-    /* Se chegar aqui, algo muito errado aconteceu */
     serial_print("[boot] ERRO: upm_run retornou!\n");
     for (;;) __asm__ volatile ("cli; hlt");
 }
