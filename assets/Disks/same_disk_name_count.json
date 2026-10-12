@@ -1,10 +1,13 @@
 {
     "Names": {
         "New Disk": 4,
-        "OI": 2
+        "OI": 2,
+        "Disk0": 1,
+        "Disco 0": 1
     },
     "Dirs": {
         "NewDisk": 4,
-        "OI": 2
+        "OI": 2,
+        "Disk0": 1
     }
 }

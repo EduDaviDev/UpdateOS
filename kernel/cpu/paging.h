@@ -37,4 +37,17 @@ void paging_init(void);
 void paging_map_page(uint32_t virt, uint32_t phys, uint32_t flags);
 void paging_unmap_page(uint32_t virt);
 
+/* Cria um novo address space, copiando as entradas de kernel
+ * do diretório atual. Retorna o endereço físico do PD novo. */
+uint32_t paging_create_address_space(void);
+
+/* Troca o CR3 pro PD indicado (endereço físico) */
+void     paging_switch_directory(uint32_t pd_phys);
+
+/* Retorna o PD do kernel (o boot_page_directory) */
+uint32_t paging_kernel_directory(void);
+
+/* Libera todos os frames mapeados em modo user do PD e depois o próprio PD */
+void     paging_destroy_directory(uint32_t pd_phys);
+
 #endif

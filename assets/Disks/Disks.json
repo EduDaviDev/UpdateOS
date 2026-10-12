@@ -1,1 +1,8 @@
-[]
+[
+    {
+        "name": "Disco 0",
+        "size": 128,
+        "fs": "FAT32",
+        "dir": "Disk0"
+    }
+]

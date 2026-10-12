@@ -1,4 +1,4 @@
-# Form implementation generated from reading ui file 'gui.ui'
+# Form implementation generated from reading ui file 'assets/Tools/Codes/MakeGUI/gui.ui'
 #
 # Created by: PyQt6 UI code generator 6.11.0
 #
@@ -14,7 +14,7 @@ class Ui_MainWindow(object):
         MainWindow.setObjectName("MainWindow")
         MainWindow.resize(442, 290)
         icon = QtGui.QIcon()
-        icon.addPixmap(QtGui.QPixmap("../../../../../../../.designer/backup/UpOS.32x32.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
+        icon.addPixmap(QtGui.QPixmap("assets/Tools/Codes/MakeGUI/../../../../../../../.designer/backup/UpOS.32x32.ico"), QtGui.QIcon.Mode.Normal, QtGui.QIcon.State.Off)
         MainWindow.setWindowIcon(icon)
         self.UpOS_label = QtWidgets.QLabel(parent=MainWindow)
         self.UpOS_label.setGeometry(QtCore.QRect(150, 0, 151, 21))
@@ -160,10 +160,10 @@ class Ui_MainWindow(object):
         self.app_list.setGeometry(QtCore.QRect(0, 0, 441, 201))
         self.app_list.setObjectName("app_list")
         self.btn_build_app = QtWidgets.QPushButton(parent=self.apps)
-        self.btn_build_app.setGeometry(QtCore.QRect(220, 200, 171, 31))
+        self.btn_build_app.setGeometry(QtCore.QRect(0, 200, 141, 31))
         self.btn_build_app.setObjectName("btn_build_app")
         self.btn_build_all_apps = QtWidgets.QPushButton(parent=self.apps)
-        self.btn_build_all_apps.setGeometry(QtCore.QRect(0, 200, 221, 31))
+        self.btn_build_all_apps.setGeometry(QtCore.QRect(140, 200, 141, 31))
         self.btn_build_all_apps.setObjectName("btn_build_all_apps")
         self.btn_reload_apps = QtWidgets.QPushButton(parent=self.apps)
         self.btn_reload_apps.setGeometry(QtCore.QRect(390, 200, 51, 31))
@@ -172,6 +172,10 @@ class Ui_MainWindow(object):
         self.btn_reload_apps.setIcon(icon)
         self.btn_reload_apps.setIconSize(QtCore.QSize(32, 32))
         self.btn_reload_apps.setObjectName("btn_reload_apps")
+        self.btn_copy_app = QtWidgets.QPushButton(parent=self.apps)
+        self.btn_copy_app.setGeometry(QtCore.QRect(280, 200, 111, 31))
+        self.btn_copy_app.setIconSize(QtCore.QSize(32, 32))
+        self.btn_copy_app.setObjectName("btn_copy_app")
         self.Tabs.addTab(self.apps, "")
         self.bitmap = QtWidgets.QWidget()
         self.bitmap.setObjectName("bitmap")
@@ -251,6 +255,7 @@ class Ui_MainWindow(object):
         self.Tabs.setTabText(self.Tabs.indexOf(self.disk), _translate("MainWindow", "Disks"))
         self.btn_build_app.setText(_translate("MainWindow", "Build this App"))
         self.btn_build_all_apps.setText(_translate("MainWindow", "Build all Apps"))
+        self.btn_copy_app.setText(_translate("MainWindow", "Copy to disk"))
         self.Tabs.setTabText(self.Tabs.indexOf(self.apps), _translate("MainWindow", "Apps"))
         self.btn_convert_bmp.setText(_translate("MainWindow", "Convert this Pixel Files to Bitmap"))
         self.btn_convert_all_bmp.setText(_translate("MainWindow", "Convert all Pixel Files to Bitmap"))

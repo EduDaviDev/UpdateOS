@@ -62,3 +62,19 @@ build/
 # python
 .venv/
 __pycache__/
+
+# folders
+/assets/Apps/Binaries/*
+/assets/Apps/Build/*
+/assets/Apps/Codes/*
+
+/assets/Bitmaps/Headers/*
+/assets/Bitmaps/Sources/*
+
+/assets/Fonts/Bases/*
+/assets/Fonts/Out/*
+
+/assets/Disks/Data/*
+/assets/Disks/Images/*
+
+/assets/Tools/Binaries/*

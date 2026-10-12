@@ -3,10 +3,13 @@
 
 #include <stdint.h>
 
+#define GDT_ENTRIES     6      /* null, kcode, kdata, ucode, udata, tss */
+
 #define GDT_KERNEL_CODE 0x08
 #define GDT_KERNEL_DATA 0x10
 #define GDT_USER_CODE   0x18
 #define GDT_USER_DATA   0x20
+#define GDT_TSS         0x28
 
 struct gdt_entry {
     uint16_t limit_low;
@@ -23,6 +26,7 @@ struct gdt_ptr {
 } __attribute__((packed));
 
 void gdt_init(void);
-void gdt_set_gate(int num, uint32_t base, uint32_t limit, uint8_t access, uint8_t gran);
+void gdt_set_gate(int num, uint32_t base, uint32_t limit,
+                  uint8_t access, uint8_t gran);
 
 #endif

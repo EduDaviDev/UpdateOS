@@ -1,7 +1,5 @@
 #include "gdt.h"
 
-#define GDT_ENTRIES 5
-
 static struct gdt_entry gdt[GDT_ENTRIES];
 static struct gdt_ptr   gp;
 
@@ -28,6 +26,8 @@ void gdt_init(void) {
     gdt_set_gate(2, 0, 0xFFFFFFFF, 0x92, 0xCF); // Kernel data
     gdt_set_gate(3, 0, 0xFFFFFFFF, 0xFA, 0xCF); // User code
     gdt_set_gate(4, 0, 0xFFFFFFFF, 0xF2, 0xCF); // User data
+
+    /* Índice 5 (TSS) fica zerado aqui — preenchido por tss_init() */
 
     gdt_flush((uint32_t)&gp);
 }
